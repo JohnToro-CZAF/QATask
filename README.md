@@ -1,22 +1,39 @@
 # QATask
+
+**NOTE**: Run `python -m pip install drqa` before doing anything else.
+
 ## To do:
-1. Clean wiki articles
-2. Attaching ID for each wiki article
-3. SQL retrieving according to ID
-4. Retriever returns ID
+- [x] Clean wiki articles
+- [x] Attaching ID for each wiki article
+- [x] SQL retrieving according to ID
+- [ ] Retriever returns ID
 
 ## Possible retrievers:
-1. KNN
-2. TF-IDF
-3. BM25
-4. Elastic search
-5. Exact string matching + POS and NER feature-based search
-6. DPR = BERT trained on question+context_passage vietnamese embeddings + FAISS for searching
+- [ ] KNN
+- [x] TF-IDF
+- [ ] BM25
+- [ ] Elastic search
+- [ ] Exact string matching + POS and NER feature-based search
+- [ ] DPR = BERT trained on question+context_passage vietnamese embeddings + FAISS for searching
 
 ## How to create database sqlite
-First create a folder for .db file named qatask/database/SQLDB then a file init.
-Download the wiki articles: https://dl-challenge.zalo.ai/e2e-question-answering/wikipedia_20220620_cleaned.zip
-And save it as path/to/data.
+First, create a folder named `qatask/database/SQLDB` with a `__init__().py` iniside it.
+
+Download the [ZaloAI wiki articles](https://dl-challenge.zalo.ai/e2e-question-answering/wikipedia_20220620_cleaned.zip) and save it as `qatask/database/data_wiki_cleaned`.
+
 Then run the following script:
-python build_db.py path/to/data qatask/database/SQLDB --preprocess wiki_preprocess.py
-Now you can try interact with it by using script qatask/database/connecting.py Remember to replace your own path to .db
+
+```
+python qatask/retriever/build_db.py qatask/database/datasets/data_wiki_cleaned/ \ 
+                                    qatask/database/wikipedia_db/wikisqlite.db \
+                                    --preprocess qatask/retriever/wiki_preprocess.py
+```
+
+Now can can try interact with it by using script `qatask/retriever/test_connect_sqlite.py qatask/database/wikipedia_db/wikisqlite.db`.
+
+## How to train TF-IDF
+Create a folder `saved_models/` then run:
+```
+python qatask/retriever/build_tfidf.py /qatask/database/wikipedia_db/wikisqlite.db \
+                                       /saved_models/
+```
