@@ -29,7 +29,10 @@ python qatask/retriever/build_db.py qatask/database/datasets/data_wiki_cleaned/ 
                                     --preprocess qatask/retriever/wiki_preprocess.py
 ```
 
-Now can can try interact with it by using script `qatask/retriever/test_connect_sqlite.py qatask/database/wikipedia_db/wikisqlite.db`.
+Now can can try interact with it by using the script:
+```
+qatask/retriever/test_connect_sqlite.py qatask/database/wikipedia_db/wikisqlite.db
+```
 
 ## How to train TF-IDF
 Create a folder `saved_models/` then run:
