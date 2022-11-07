@@ -1,0 +1,4 @@
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+qatask/database/datasets/*
+qatask/database/wikipedia_db/*
