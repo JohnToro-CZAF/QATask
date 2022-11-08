@@ -1,9 +1,3 @@
-#!/usr/bin/env python3
-# Copyright 2017-present, Facebook, Inc.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
 """Base tokenizer/tokens classes and utilities."""
 
 import copy
@@ -39,12 +33,11 @@ class Tokens(object):
 
     def words(self, uncased=False):
         """Returns a list of the text of each token
-
         Args:
             uncased: lower cases text
         """
         if uncased:
-            return [t.lower() for t in self.data]
+            return [t[self.TEXT].lower() for t in self.data] # CONFLICT: t.lower()
         else:
             return [t[self.TEXT] for t in self.data]
 
@@ -78,7 +71,6 @@ class Tokens(object):
 
     def ngrams(self, n=1, uncased=False, filter_fn=None, as_strings=True):
         """Returns a list of all ngrams from length 1 to n.
-
         Args:
             n: upper limit of ngram length
             uncased: lower cases text
@@ -90,11 +82,13 @@ class Tokens(object):
             if not filter_fn:
                 return False
             return filter_fn(gram)
-        words = self.data
+
+        words = self.words(uncased)
         ngrams = [(s, e + 1)
                   for s in range(len(words))
                   for e in range(s, min(s + n, len(words)))
                   if not _skip(words[s:e + 1])]
+
         # Concatenate into strings
         if as_strings:
             ngrams = ['{}'.format(' '.join(words[s:e])) for (s, e) in ngrams]

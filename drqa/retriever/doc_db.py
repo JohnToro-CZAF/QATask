@@ -1,22 +1,17 @@
-#!/usr/bin/env python3
-# Copyright 2017-present, Facebook, Inc.
-# All rights reserved.
-#
-# This source code is licensed under the license found in the
-# LICENSE file in the root directory of this source tree.
 """Documents, in a sqlite database."""
 
 import sqlite3
 from . import utils
+from . import DEFAULTS
+
 
 class DocDB(object):
     """Sqlite backed document storage.
-
     Implements get_doc_text(doc_id).
     """
 
     def __init__(self, db_path=None):
-        self.path = db_path
+        self.path = db_path or DEFAULTS['db_path']
         self.connection = sqlite3.connect(self.path, check_same_thread=False)
 
     def __enter__(self):
@@ -41,12 +36,28 @@ class DocDB(object):
         cursor.close()
         return results
 
+    def get_doc_wikipage(self, doc_id):
+        """Fetch the wikipage of the doc for 'doc_id'."""
+        cursor = self.connection.cursor()
+        cursor.execute(
+            "SELECT wikipage FROM documents WHERE id = ?",
+            (str(doc_id),)
+        )
+        result = cursor.fetchone()
+        cursor.close()
+        return result if result is None else result[0]
+
+        # for doc_name in doc_names:
+        # res = cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_name), ))
+        # wikipage = res.fetchone()
+        # doc_wiki.append(wikipage)
+
     def get_doc_text(self, doc_id):
         """Fetch the raw text of the doc for 'doc_id'."""
         cursor = self.connection.cursor()
         cursor.execute(
             "SELECT text FROM documents WHERE id = ?",
-            (utils.normalize(doc_id),)
+            (str(doc_id),)
         )
         result = cursor.fetchone()
         cursor.close()

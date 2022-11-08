@@ -1,0 +1,4 @@
+reader: BM25
+retriever: BaseRetriever
+postprocessing: None
+
