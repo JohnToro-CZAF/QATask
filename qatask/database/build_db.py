@@ -10,12 +10,8 @@ import importlib.util
 
 from multiprocessing import Pool as ProcessPool
 from tqdm import tqdm
-<<<<<<< HEAD:qatask/retriever/build_db.py
 
 from drqa.retriever import utils
-=======
-from retriever.TFIDF.retriver_drqa import utils
->>>>>>> 807dabaf21b69f496afff32315dc6e00eecdae94:qatask/database/build_db.py
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -89,6 +85,7 @@ def store_contents(data_path, save_path, preprocess, num_workers=None):
         raise RuntimeError('%s already exists! Not overwriting.' % save_path)
 
     logger.info('Reading into database...')
+    print(save_path)
     conn = sqlite3.connect(save_path)
     c = conn.cursor()
     c.execute("CREATE TABLE documents (id PRIMARY KEY, text, wikipage);")
@@ -97,10 +94,9 @@ def store_contents(data_path, save_path, preprocess, num_workers=None):
     files = [f for f in iter_files(data_path)]
     count = 0
     with tqdm(total=len(files)) as pbar:
-        for triples in tqdm(workers.imap_unordered(get_contents, files)):
-            count += len(triples)
-            print(count)
-            c.executemany("INSERT INTO documents VALUES (?,?,?)", triples)
+        for triple in tqdm(workers.imap_unordered(get_contents, files)):
+            count += len(triple)
+            c.executemany("INSERT INTO documents VALUES (?,?,?)", triple)
             pbar.update()
     logger.info('Read %d docs.' % count)
     logger.info('Committing...')
@@ -115,17 +111,15 @@ def store_contents(data_path, save_path, preprocess, num_workers=None):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('data_path', type=str, help='path/to/data_wiki_cleaned')
-    parser.add_argument('save_path', type=str, help='path/to/database/SQLDB/wikisqlite.db')
+    parser.add_argument('data_path', type=str, help='../../sample/data_wiki_cleaned')
+    parser.add_argument('save_path', type=str, help='../../SQLDB/wikisqlite.db')
     parser.add_argument('--preprocess', type=str, default=None,
                         help=('File path to a python module that defines '
                               'a `preprocess` function'))
-    parser.add_argument('--num-workers', type=int, default=1,
+    parser.add_argument('--num-workers', type=int, default=None,
                         help='Number of CPU processes (for tokenizing, etc)')
     args = parser.parse_args()
-    
-    print(f"save_path: {args.save_path}")
-
+    print(args.save_path)
     store_contents(
         args.data_path, args.save_path, args.preprocess, args.num_workers
     )

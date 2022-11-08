@@ -1,7 +1,6 @@
 import os, sys
 import argparse
 import logging
-# sys.path.insert(1, '/home/ubuntu/hoang.pn200243/AQ/QATask/qatask/retriever')
 import sqlite3
 
 from drqa import retriever

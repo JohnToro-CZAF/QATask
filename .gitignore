@@ -20,6 +20,8 @@ var/
 *.egg
 
 # Data
-qatask/database/wikipedia_db/wikisqlite.db
-qatask/database/datasets/data_wiki_cleaned/wikipedia.jsonl
+qatask/database/wikipedia_db/*
+qatask/database/datasets/*
+qatask/database/datasets/data_wiki_cleaned/*
+qatask/database/datasets/train_test_files/*
 saved_models/*

@@ -94,7 +94,6 @@ def filter_word(text):
 
 def filter_ngram(gram, mode='any'):
     """Decide whether to keep or discard an n-gram.
-
     Args:
         gram: list of tokens (length N)
         mode: Option to throw out ngram if
@@ -122,5 +121,4 @@ def get_field(d, field_list):
         idx = d.copy()
         for field in field_list:
             idx = idx[field]
-        return idx
-
+        return 
