@@ -25,7 +25,7 @@ First, create a folder named `qatask/database/wikipedia_db` with a `__init__.py`
 
 Download and save ZaloAI's datasets:
 - [wiki articles](https://dl-challenge.zalo.ai/e2e-question-answering/wikipedia_20220620_cleaned.zip) 
-as `qatask/database/data_wiki_cleaned/wikipedia.jsonl`
+as `qatask/database/datasets/data_wiki_cleaned/wikipedia.jsonl`
 - [Train and test files](https://dl-challenge.zalo.ai/e2e-question-answering/e2eqa-train+public_test-v1.zip) as `qatask/database/datasets/train_test_files/train_merged_final.json` and `qatask/database/datasets/train_test_files/test_sample.json`
 
 Then run the following script:
