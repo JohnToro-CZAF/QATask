@@ -1,7 +1,7 @@
 # QATask
 
 **NOTE**: 
-- Assume the ONLY working directory is `/path/to/QATask/`.
+- Assume the ONLY working directory is `/absolute/path/to/QATask/`.
 - Run `python setup.py install ; pip install -r requirements.txt` before doing anything else.
 - Run `python setup.py install` again after making any changes in folder `drqa`.
 
@@ -26,8 +26,7 @@ First, create a folder named `qatask/database/wikipedia_db` with a `__init__.py`
 Download and save ZaloAI's datasets:
 - [wiki articles](https://dl-challenge.zalo.ai/e2e-question-answering/wikipedia_20220620_cleaned.zip) 
 as `qatask/database/data_wiki_cleaned/wikipedia.jsonl`
-- Train file as `qatask/database/datasets/train_test_files/train_merged_final.json`
-- Test file as `qatask/database/datasets/train_test_files/test_sample.json`
+- [Train and test files](https://dl-challenge.zalo.ai/e2e-question-answering/e2eqa-train+public_test-v1.zip) as `qatask/database/datasets/train_test_files/train_merged_final.json` and `qatask/database/datasets/train_test_files/test_sample.json`
 
 Then run the following script:
 
