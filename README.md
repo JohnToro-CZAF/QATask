@@ -20,7 +20,7 @@
 - [ ] DPR = BERT trained on question+context_passage vietnamese embeddings + FAISS for searching
 
 ## How to create database sqlite
-First, create a folder named `qatask/database/SQLDB` with a `__init__().py` iniside it.
+First, create a folder named `qatask/database/wikipedia_db` with a `__init__().py` iniside it.
 
 Download and save ZaloAI's datasets:
 - [wiki articles](https://dl-challenge.zalo.ai/e2e-question-answering/wikipedia_20220620_cleaned.zip) 
