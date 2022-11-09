@@ -37,7 +37,7 @@ class Tokens(object):
             uncased: lower cases text
         """
         if uncased:
-            return [t[self.TEXT].lower() for t in self.data] # CONFLICT: t.lower()
+            return [t.lower() for t in self.data] # CONFLICT: t.lower()
         else:
             return [t[self.TEXT] for t in self.data]
 
