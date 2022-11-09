@@ -10,11 +10,9 @@ import argparse
 import code
 import prettytable
 import logging
-import sys
+import sys, os
 
-sys.path.insert(1, '/home/ubuntu/hoang.pn200243/AQ/QATask/qatask/retriever')
-
-from TFIDF import retriver_drqa
+from drqa import retriever
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -28,10 +26,11 @@ parser.add_argument('--model', type=str, default=None)
 args = parser.parse_args()
 
 logger.info('Initializing ranker...')
-ranker = retriver_drqa.get_class('tfidf')(tfidf_path=args.model)
+ranker = retriever.get_class('tfidf')(tfidf_path=args.model)
 
 import sqlite3
-con = sqlite3.connect("/home/ubuntu/hoang.pn200243/AQ/QATask/qatask/database/SQLDB/wikisqlite.db")
+db_path = os.path.join(os.getcwd(), "qatask/database/wikipedia_db/wikisqlite.db")
+con = sqlite3.connect(db_path)
 cur = con.cursor()
 
 # ------------------------------------------------------------------------------
@@ -39,10 +38,10 @@ cur = con.cursor()
 # ------------------------------------------------------------------------------
 
 
-def process(query, k=10):
+def process(query, k=5):
     doc_names, doc_scores = ranker.closest_docs(query, k)
     table = prettytable.PrettyTable(
-        ['Rank', 'Doc Id', 'Doc Score', 'Wiki Page']
+        ['Rank', 'Doc Id', 'Wiki Page', 'Doc Score']
     )
     doc_wiki = []
     for doc_name in doc_names:

@@ -1,2 +1,3 @@
-pip install underthesea
-pip install prettytable
+pyvi
+underthesea
+elasticsearch

@@ -4,12 +4,14 @@ import argparse
 import sqlite3
 import json
 import os
+import sys
 import logging
 import importlib.util
 
 from multiprocessing import Pool as ProcessPool
 from tqdm import tqdm
-from retriever.TFIDF.retriver_drqa import utils
+
+from drqa.retriever import utils
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
