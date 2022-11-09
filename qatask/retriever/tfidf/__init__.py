@@ -1,6 +1,9 @@
 import os
-from .. import DATA_DIR
 import sys
+from pathlib import PosixPath
+DATA_DIR = (
+    os.path.join(PosixPath(__file__).absolute().parents[1].as_posix(), 'qatask/database')
+)
 DEFAULTS = {
     'db_path': os.path.join(DATA_DIR, 'wikipedia_db/wikisqlite.db'),
     'tfidf_path': os.path.join(
@@ -15,13 +18,6 @@ def set_default(key, value):
     global DEFAULTS
     DEFAULTS[key] = value
 
-
-def get_class(name):
-    if name == 'tfidf':
-        return TfidfDocRanker
-    if name == 'sqlite':
-        return DocDB
-    raise RuntimeError('Invalid retriever class: %s' % name)
-
 from .doc_db import DocDB
-from .tfidf_doc_ranker import TfidfDocRanker
+
+

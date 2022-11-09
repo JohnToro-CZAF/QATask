@@ -31,32 +31,12 @@ as `qatask/database/datasets/data_wiki_cleaned/wikipedia.jsonl`
 Then run the following script:
 
 ```
-python qatask/database/build_db.py  absolute/path/to/QATask/qatask/database/datasets/data_wiki_cleaned/ \
-                                    absolute/path/to/QATask/qatask/database/wikipedia_db/wikisqlite.db \
-                                    --preprocess qatask/database/wiki_preprocess.py --num-workers 32
+python main.py 
 ```
-
-Now can can try interact with it by using the script:
+If you want to add new modules. Please, visit qatask/* and inherit classes base.py. For example, 
 ```
-!python qatask/database/test_connect_sqlite.py qatask/database/wikipedia_db/wikisqlite.db
+XLMReader(BaseReader):
+    def __init__(self, cfg)
+        ...
 ```
-
-## How to train TF-IDF
-Create folder `saved_models` and run:
-```
-python qatask/retriever/build_tfidf.py  absolute/path/to/QATask/qatask/database/wikipedia_db/wikisqlite.db \
-                                        saved_models/ \
-                                        --tokenizer vnm --num-workers 32
-```
-Note: current available Vietnamese tokenizers are `vnm` or `pyvi`
-
-The Document Retriever can now be used interactively with:
-```
-python tools/TFIDF/interactive.py --model saved_models/<model_file>
-```
-
-## To create submission file
-```
-python tools/TFIDF/candidate_passage_gen.py --model saved_models/<model_file> \
-                                            --tokenizer vnm
-```
+and register your module class in `builder.py` and change your name class in baseline.yaml or make your own configuration file `your_config.yaml`
