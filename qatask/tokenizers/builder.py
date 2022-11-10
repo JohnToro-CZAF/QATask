@@ -23,19 +23,20 @@ except ImportError:
     pass
 
 
-def get_class(name):
+def build_tokenizer(cfg):
+    name = cfg.type
     if name == 'spacy':
-        return SpacyTokenizer
+        return SpacyTokenizer()
     if name == 'corenlp':
-        return CoreNLPTokenizer
+        return CoreNLPTokenizer()
     if name == 'regexp':
-        return RegexpTokenizer
+        return RegexpTokenizer()
     if name == 'simple':
-        return SimpleTokenizer
+        return SimpleTokenizer()
     if name == 'vnm':
-        return VNMTokenizer
+        return VNMTokenizer()
     if name == 'pyvi':
-        return PIVITokenizer
+        return PIVITokenizer()
     raise RuntimeError('Invalid tokenizer: %s' % name)
 
 

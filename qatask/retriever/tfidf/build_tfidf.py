@@ -4,17 +4,18 @@ import numpy as np
 import scipy.sparse as sp
 import argparse
 import os
-import sys
 import math
+import sys
 import logging
+import time
+import threading
 
 from multiprocessing import Pool as ProcessPool
 from multiprocessing.util import Finalize
 from functools import partial
 from collections import Counter
 
-from drqa import retriever
-from drqa import tokenizers
+from .utils import *
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -22,7 +23,6 @@ fmt = logging.Formatter('%(asctime)s: [ %(message)s ]', '%m/%d/%Y %I:%M:%S %p')
 console = logging.StreamHandler()
 console.setFormatter(fmt)
 logger.addHandler(console)
-
 
 # ------------------------------------------------------------------------------
 # Multiprocessing functions
@@ -35,7 +35,7 @@ PROCESS_DB = None
 
 def init(tokenizer_class, db_class, db_opts):
     global PROCESS_TOK, PROCESS_DB
-    PROCESS_TOK = tokenizer_class()
+    PROCESS_TOK = tokenizer_class
     Finalize(PROCESS_TOK, PROCESS_TOK.shutdown, exitpriority=100)
     PROCESS_DB = db_class(**db_opts)
     Finalize(PROCESS_DB, PROCESS_DB.close, exitpriority=100)
@@ -61,15 +61,15 @@ def count(ngram, hash_size, doc_id):
     global DOC2IDX
     row, col, data = [], [], []
     # Tokenize
-    tokens = tokenize(retriever.utils.normalize(fetch_text(doc_id)))
-
+    tokens = tokenize(fetch_text(doc_id))
+    # print(tokens.data)
     # Get ngrams from tokens, with stopword/punctuation filtering.
     ngrams = tokens.ngrams(
-        n=ngram, uncased=True, filter_fn=retriever.utils.filter_ngram
+        n=ngram, uncased=True, filter_fn=filter_ngram
     )
 
     # Hash ngrams and count occurences
-    counts = Counter([retriever.utils.hash(gram, hash_size) for gram in ngrams])
+    counts = Counter([hash(gram, hash_size) for gram in ngrams])
 
     # Return in sparse matrix data format.
     row.extend(counts.keys())
@@ -78,21 +78,23 @@ def count(ngram, hash_size, doc_id):
     return row, col, data
 
 
-def get_count_matrix(args, db, db_opts):
+def get_count_matrix(cfg, db, db_opts, tokenizer):
     """Form a sparse word to document count matrix (inverted index).
+
     M[i, j] = # times word i appears in document j.
     """
     # Map doc_ids to indexes
     global DOC2IDX
-    db_class = retriever.get_class(db)
+    from .doc_db import DocDB
+    db_class = DocDB
     with db_class(**db_opts) as doc_db:
         doc_ids = doc_db.get_doc_ids()
     DOC2IDX = {doc_id: i for i, doc_id in enumerate(doc_ids)}
 
     # Setup worker pool
-    tok_class = tokenizers.get_class(args.tokenizer)
+    tok_class = tokenizer
     workers = ProcessPool(
-        args.num_workers,
+        cfg.num_workers,
         initializer=init,
         initargs=(tok_class, db_class, db_opts)
     )
@@ -102,8 +104,10 @@ def get_count_matrix(args, db, db_opts):
     row, col, data = [], [], []
     step = max(int(len(doc_ids) / 10), 1)
     batches = [doc_ids[i:i + step] for i in range(0, len(doc_ids), step)]
-    _count = partial(count, args.ngram, args.hash_size)
+    _count = partial(count, cfg.ngram, int(math.pow(2,cfg.hash_size)))
     for i, batch in enumerate(batches):
+        # For testing purpose 
+        cnt = 0
         logger.info('-' * 25 + 'Batch %d/%d' % (i + 1, len(batches)) + '-' * 25)
         for b_row, b_col, b_data in workers.imap_unordered(_count, batch):
             row.extend(b_row)
@@ -114,7 +118,7 @@ def get_count_matrix(args, db, db_opts):
 
     logger.info('Creating sparse matrix...')
     count_matrix = sp.csr_matrix(
-        (data, (row, col)), shape=(args.hash_size, len(doc_ids))
+        (data, (row, col)), shape=(int(math.pow(2,cfg.hash_size)), len(doc_ids))
     )
     count_matrix.sum_duplicates()
     return count_matrix, (DOC2IDX, doc_ids)
@@ -127,6 +131,7 @@ def get_count_matrix(args, db, db_opts):
 
 def get_tfidf_matrix(cnts):
     """Convert the word count matrix into tfidf one.
+
     tfidf = log(tf + 1) * log((N - Nt + 0.5) / (Nt + 0.5))
     * tf = term frequency in document
     * N = number of documents
@@ -162,12 +167,12 @@ if __name__ == '__main__':
     parser.add_argument('--ngram', type=int, default=2,
                         help=('Use up to N-size n-grams '
                               '(e.g. 2 = unigrams + bigrams)'))
-    parser.add_argument('--hash-size', type=int, default=int(math.pow(2, 24)),
+    parser.add_argument('--hash-size', type=int, default=int(math.pow(2, 28)),
                         help='Number of buckets to use for hashing ngrams')
-    parser.add_argument('--tokenizer', type=str, default='simple',
+    parser.add_argument('--tokenizer', type=str, default='vnm',
                         help=("String option specifying tokenizer type to use "
                               "(e.g. 'corenlp')"))
-    parser.add_argument('--num-workers', type=int, default=None,
+    parser.add_argument('--num-workers', type=int, default=12,
                         help='Number of CPU processes (for tokenizing, etc)')
     args = parser.parse_args()
 
@@ -185,6 +190,7 @@ if __name__ == '__main__':
     basename = os.path.splitext(os.path.basename(args.db_path))[0]
     basename += ('-tfidf-ngram=%d-hash=%d-tokenizer=%s' %
                  (args.ngram, args.hash_size, args.tokenizer))
+    basename += str(time.time())
     filename = os.path.join(args.out_dir, basename)
 
     logger.info('Saving to %s.npz' % filename)
@@ -193,6 +199,6 @@ if __name__ == '__main__':
         'tokenizer': args.tokenizer,
         'hash_size': args.hash_size,
         'ngram': args.ngram,
-        'doc_dict': doc_dict
+        'doc_dict': doc_dict,
     }
-    retriever.utils.save_sparse_csr(filename, tfidf, metadata)
+    save_sparse_csr(filename, tfidf, metadata)

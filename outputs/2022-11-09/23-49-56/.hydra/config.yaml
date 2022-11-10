@@ -1,21 +1,21 @@
 database:
   type: sqlite
-  rebuild: False
+  rebuild: true
   dataset_path: qatask/database/datasets/data_wiki_cleaned
-  database_path: qatask/database/wikipedia_db/wikisqlite.db # Path to the database file
+  database_path: qatask/database/wikipedia_db/wikisqlite.db
   preprocess: qatask/preprocess/wiki_preprocess.py
   num_workers: 32
-reader: 
+reader:
   type: default
-retriever: 
+retriever:
   type: tf-idf
   top_k: 5
   ngram: 2
-  hash_size: 28 #to power of 28
+  hash_size: 28
   db_path: qatask/database/wikipedia_db/wikisqlite.db
   num_workers: 32
-  checkpoint: checkpoint/TFIDF_models/
-postprocessor: 
+  checkpoint: TFIDF_models/
+postprocessor:
   type: default
 pipeline:
   type: default

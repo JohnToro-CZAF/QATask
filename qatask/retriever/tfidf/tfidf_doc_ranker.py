@@ -9,7 +9,6 @@ from functools import partial
 
 from . import utils
 from . import DEFAULTS
-from .. import tokenizers
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +18,7 @@ class TfidfDocRanker(object):
     Scores new queries by taking sparse dot products.
     """
 
-    def __init__(self, tfidf_path=None, strict=False):
+    def __init__(self, tfidf_path=None, strict=False, tokenizer=None):
         """
         Args:
             tfidf_path: path to saved model file
@@ -32,7 +31,7 @@ class TfidfDocRanker(object):
         self.doc_mat = matrix
         self.ngrams = metadata['ngram']
         self.hash_size = metadata['hash_size']
-        self.tokenizer = tokenizers.get_class(metadata['tokenizer'])()
+        self.tokenizer = tokenizer
         self.doc_freqs = metadata['doc_freqs'].squeeze()
         self.doc_dict = metadata['doc_dict']
         self.num_docs = len(self.doc_dict[0])
