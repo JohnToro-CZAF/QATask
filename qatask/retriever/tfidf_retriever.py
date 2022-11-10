@@ -32,7 +32,7 @@ class TFIDFRetriever(BaseRetriever):
         freqs = get_doc_freqs(count_matrix)
         basename = osp.splitext(osp.basename(self.cfg.db_path))[0]
         basename += ('-tfidf-ngram=%d-hash=%d-tokenizer=%s' %
-                 (args.ngram, args.hash_size, args.tokenizer))
+                 (self.cfg.ngram, self.cfg.hash_size, 'tokenizer'))
         basename += str(time.time())
         filename = os.path.join(self.cfg.checkpoint, basename)
         print("Saving to %s" % filename)
@@ -41,7 +41,7 @@ class TFIDFRetriever(BaseRetriever):
         'doc_freqs': freqs,
         'tokenizer': 'vnm',
         'hash_size': int(math.pow(2, self.cfg.hash_size)),
-        'ngram': args.ngram,
+        'ngram': self.cfg.ngram,
         'doc_dict': doc_dict,
         }
         data = {
