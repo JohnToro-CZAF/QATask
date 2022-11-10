@@ -4,6 +4,7 @@ from .tfidf.build_tfidf import *
 import sqlite3
 import os.path as osp
 import os
+import glob
 import math
 
 def process(cur, ranker, query, k=5):
@@ -15,16 +16,30 @@ def process(cur, ranker, query, k=5):
         doc_wiki.append(wikipage)
     return doc_wiki 
 
+# TODO: move this function to retriever utils
+def get_latest_checkpoint(cfg) -> str:
+    dir_name = osp.splitext(osp.basename(cfg.checkpoint))
+    ckpt_names = glob('{}/*.npz'.format(dir_name))
+    ckpt_names = sorted(ckpt_names)
+    if len(ckpt_names) == 0:
+        logger.info('No checkpoints found in dir_name {}'.format(dir_name))
+    else:
+        checkpoint = ckpt_names[0]
+    return checkpoint
+
 class TFIDFRetriever(BaseRetriever):
     def __init__(self, cfg, tokenizer, db_path) -> None:
         super().__init__()
         self.cfg = cfg
         self.top_k = cfg.top_k
-        filename = self.building_tfidf(tokenizer)
+        if cfg.retriever.rebuild:
+            filename = self.building_tfidf(tokenizer)
+        else:
+            filename = get_latest_checkpoint(cfg)
         self.tfidf_ranker = TfidfDocRanker(tfidf_path = filename, tokenizer=tokenizer)
         con = sqlite3.connect(osp.join(os.getcwd(), db_path))
         self.top_kcur = con.cursor()
-    
+
     def building_tfidf(self, tokenizer):
         print("Counting words")
         count_matrix, doc_dict = get_count_matrix(self.cfg, 'sqlite', {'db_path': self.cfg.db_path}, tokenizer)
