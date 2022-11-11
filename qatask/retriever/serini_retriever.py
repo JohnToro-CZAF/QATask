@@ -64,7 +64,7 @@ class ANCERetriever(BaseRetriever):
 
 if __name__ == "__main__":
     searcher = FaissSearcher(
-    'checkpoint/indexes/colbert-v2/index',
+    'checkpoint/indexes/colbert-v2',
     'castorini/tct_colbert-v2-hnp-msmarco'
     )
     hits = searcher.search('what is a lobster roll')

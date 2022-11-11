@@ -1,8 +1,7 @@
 import os
 import os.path as osp
 import subprocess
-import hydra
-from omegaconf import DictConfig
+import omegaconf 
 import argparse
 import joblib
 from tqdm import tqdm
@@ -20,7 +19,8 @@ class ProgressParallel(joblib.Parallel):
 
 def parse_arguments():
     parser = argparse.ArgumentParser("ZaloAI")
-    parser.add_argument("--gpu-ids", type=str, default="0,1,2,3")
+    parser.add_argument("--gpu-ids", type=str, default="0")
+    parser.add_argument("--cfg", type=str, required=True)
     return parser.parse_args()
 
 def faiss_generator(cfg, shard_id, gpu_id):
@@ -40,9 +40,9 @@ def faiss_generator(cfg, shard_id, gpu_id):
 def merge_faiss_shard(cfg):
     subprocess.call("python -m pyserini.index.merge_faiss_indexes --prefix {} --shard-num {}".format(cfg.retriever, cfg.shard_num))
 
-@hydra.main(version_base=None, config_path="../configs/retriever", config_name="colbertv2")
-def main(cfg : DictConfig) -> None:
+def main() -> None:
     args = parse_arguments()
+    cfg = omegaconf.OmegaConf.load(args.cfg)
     gpu_ids = [int(id) for id in args.gpu_ids.split(',')]
     ProgressParallel(n_jobs=len(gpu_ids))(joblib.delayed(faiss_generator)(cfg, id, id) for id in gpu_ids)
     # merge_faiss_shard(cfg)
