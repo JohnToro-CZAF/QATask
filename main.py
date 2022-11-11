@@ -12,8 +12,8 @@ import json
 
 def parse_arguments():
     parser = argparse.ArgumentParser("ZaloAI")
-    parser.add_argument("--sample-path", type=str, default="qatask/database/datasets/sample_submission.json")
-    parser.add_argument("--output-path", type=str, default="qatask/database/datasets/test_answer_submission.json")
+    parser.add_argument("--sample-path", type=str, default="qatask/database/datasets/train_test_files/test_sample.json")
+    parser.add_argument("--output-path", type=str, default="qatask/database/datasets/output/test_answer_submission.json")
     parser.add_argument("--cfg", type=str, required=True)
     args = parser.parse_args()
     return args
