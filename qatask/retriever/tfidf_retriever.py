@@ -13,7 +13,7 @@ def process(cur, ranker, query, k=5):
     for doc_id in doc_ids:
         res = cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
         wikipage = res.fetchone()
-        doc_wiki.append(wikipage)
+        doc_wiki.append((doc_id,wikipage))
     return doc_wiki 
 
 # TODO: move this function to retriever utils
@@ -39,7 +39,7 @@ class TFIDFRetriever(BaseRetriever):
             filename = get_latest_checkpoint(cfg)
         self.tfidf_ranker = TfidfDocRanker(tfidf_path = filename, tokenizer=tokenizer)
         con = sqlite3.connect(osp.join(os.getcwd(), db_path))
-        self.top_kcur = con.cursor()
+        self.cur = con.cursor()
 
     def building_tfidf(self, tokenizer):
         print("Counting words")
@@ -50,7 +50,9 @@ class TFIDFRetriever(BaseRetriever):
         basename += ('-tfidf-ngram=%d-hash=%d-tokenizer=%s' %
                  (self.cfg.ngram, self.cfg.hash_size, 'tokenizer'))
         basename += str(time.time())
-        filename = os.path.join(self.cfg.checkpoint, basename)
+        if not osp.exists(self.cfg.checkpoint):
+            os.mkdir(self.cfg.checkpoint)
+        filename = os.path.join(self.cfg.checkpoint, basename) + ".npz"
         print("Saving to %s" % filename)
         ##Quickfix for tokenizer name
         metadata = {
@@ -74,6 +76,6 @@ class TFIDFRetriever(BaseRetriever):
 
     def __call__(self, data):
         for question in data:
-            ans = process(self.cur, self.tfidf_ranker, question['question'], self.top_k)
-            question['answer'] = ans
+            passages_vn = process(self.cur, self.tfidf_ranker, question['question'], self.top_k)
+            question['candidate_passages'] = passages_vn
         return data
