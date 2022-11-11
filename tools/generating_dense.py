@@ -25,7 +25,7 @@ def parse_arguments():
 
 def faiss_generator(cfg, shard_id, gpu_id):
     name_retriever = cfg.retriever
-    if name_retriever == "colbert-v2":
+    if name_retriever == "colbertv2":
         name_encoder = 'castorini/tct_colbert-v2-hnp-msmarco'
     elif name_retriever == "dpr":
         name_encoder = 'facebook/dpr-question_encoder-multiset-base'

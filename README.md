@@ -29,7 +29,15 @@ as `qatask/database/datasets/data_wiki_cleaned/wikipedia.jsonl`
 - [Train and test files](https://dl-challenge.zalo.ai/e2e-question-answering/e2eqa-train+public_test-v1.zip) as `qatask/database/datasets/train_test_files/train_merged_final.json` and `qatask/database/datasets/train_test_files/test_sample.json`
 
 Then run the following script:
-
+If you want to use Sirini retrievers you need to translate Vietnamese corpus into english and in Sirini format
+```
+python3 -m tools.translate_eng 
+```
+Then you can create a FAISS index for your favourite Sirini retriever by configs file 
+```
+python3 tools/generating_dense.py --cfg configs/retriever/colbertv2.yaml
+``` 
+Now you can have Sirini searcher as a normal retriever like TFIDF.  Just run `main` with your config `configs/colbertv2.yaml` 
 ```
 python main.py 
 ```
