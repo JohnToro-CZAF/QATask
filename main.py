@@ -21,7 +21,7 @@ def parse_arguments():
     args = parser.parse_args()
     return args
 
-class QATaskPipeline:
+class Pipeline:
     def __init__(self, cfg) -> None:
         self.tokenizer = build_tokenizer(cfg.tokenizer)
         if cfg.database.rebuild:
@@ -42,7 +42,7 @@ class QATaskPipeline:
 def main(cfg : DictConfig) -> None:
     args = parse_arguments()
     if cfg.pipeline.type == "default":
-        zaloai_pipeline = QATaskPipeline(cfg)
+        zaloai_pipeline = Pipeline(cfg)
     with open(osp.join(os.getcwd(), args.sample_path)) as f:
         file = json.loads(f.read())
     data = file['data']
