@@ -9,5 +9,5 @@ class BertBase(BaseReader):
     super().__init__(cfg, tokenizer)
   
   def __call__(self, data):
-    
+      
     return data

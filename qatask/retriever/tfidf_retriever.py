@@ -19,8 +19,9 @@ def process(cur, ranker, query, k=5):
 # TODO: move this function to retriever utils
 def get_latest_checkpoint(cfg) -> str:
     dir_name = osp.splitext(osp.basename(cfg.checkpoint))
-    ckpt_names = glob('{}/*.npz'.format(dir_name))
+    ckpt_names = glob.glob('{}/*.npz'.format(dir_name))
     ckpt_names = sorted(ckpt_names)
+    checkpoint = None
     if len(ckpt_names) == 0:
         logger.info('No checkpoints found in dir_name {}'.format(dir_name))
     else:
@@ -32,7 +33,7 @@ class TFIDFRetriever(BaseRetriever):
         super().__init__()
         self.cfg = cfg
         self.top_k = cfg.top_k
-        if cfg.retriever.rebuild:
+        if cfg.rebuild:
             filename = self.building_tfidf(tokenizer)
         else:
             filename = get_latest_checkpoint(cfg)
