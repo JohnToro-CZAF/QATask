@@ -20,10 +20,10 @@ class ProgressParallel(joblib.Parallel):
 
 def parse_arguments():
     parser = argparse.ArgumentParser("ZaloAI")
-    parser.add_argument("--gpu-ids", type=str, default="1,2,3,4")
+    parser.add_argument("--gpu-ids", type=str, default="0,1,2,3")
     return parser.parse_args()
 
-def faiss_generator(cfg, shard_id):
+def faiss_generator(cfg, shard_id, gpu_id):
     name_retriever = cfg.retriever
     if name_retriever == "colbert-v2":
         name_encoder = 'castorini/tct_colbert-v2-hnp-msmarco'
@@ -32,26 +32,20 @@ def faiss_generator(cfg, shard_id):
     elif name_retriever == "ance":
         name_encoder = 'castorini/ance-msmarco-passage'
 
-    basename = "checkpoint/Faiss"
-    savename = osp.joint(basename, name_retriever)
-    subprocess.call("""python -m pyserini.encode --corpus {} \
-                                                --fields text \ 
-                                                --delimiter "\n" \
-                                                --shard-id  {} \   # The id of current shard. Default is 0
-                                                --shard-num {} \  # The total number of shards. Default is 1
-                                                --embeddings "{}" \
-                                                --to-faiss \
-                                                --encoder "{}" \
-                                                --fields text \  # fields to encode, they must appear in the input.fields
-                                                --batch {} \
-                                                --fp16""".format(cfg.corpus, shard_id, cfg.shard_num, savename, name_encoder, cfg.batch_size))
+    basename = "checkpoint/indexes"
+    savename = osp.join(basename, name_retriever)
+    subprocess.call("sh tools/index.sh {} {} {} {} {} {} {}".format(cfg.corpus, shard_id, 
+                        cfg.shard_num, savename, name_encoder, cfg.batch_size, gpu_id), shell=True)
 
 def merge_faiss_shard(cfg):
-    subprocess.call("python -m pyserini.index.merge_faiss_indexes --prefix indexes/dindex-sample-{}- --shard-num {}".format(cfg.retriever, cfg.shard_num))
+    subprocess.call("python -m pyserini.index.merge_faiss_indexes --prefix {} --shard-num {}".format(cfg.retriever, cfg.shard_num))
 
-@hydra.main(version_base=None, config_path="configs", config_name="baseline")
+@hydra.main(version_base=None, config_path="../configs/retriever", config_name="colbertv2")
 def main(cfg : DictConfig) -> None:
     args = parse_arguments()
     gpu_ids = [int(id) for id in args.gpu_ids.split(',')]
-    ProgressParallel(n_jobs=len(gpu_ids))(joblib.delayed(faiss_generator)(cfg, id) for id in gpu_ids)
-    merge_faiss_shard(cfg)
+    ProgressParallel(n_jobs=len(gpu_ids))(joblib.delayed(faiss_generator)(cfg, id, id) for id in gpu_ids)
+    # merge_faiss_shard(cfg)
+
+if __name__ == "__main__":
+    main()

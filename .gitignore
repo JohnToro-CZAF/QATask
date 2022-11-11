@@ -16,6 +16,9 @@ parts/
 sdist/
 var/
 *.egg-info/
+outputs/
+.empty/
+checkpoint/
 .installed.cfg
 *.egg
 
