@@ -32,7 +32,7 @@ class TFIDFRetriever(BaseRetriever):
         super().__init__()
         self.cfg = cfg
         self.top_k = cfg.top_k
-        if cfg.retriever.rebuild:
+        if cfg.rebuild:
             filename = self.building_tfidf(tokenizer)
         else:
             filename = get_latest_checkpoint(cfg)

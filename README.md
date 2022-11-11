@@ -43,7 +43,7 @@ python3 main.py --cfg configs/main/colbertv2.yaml
 ```
 Or you can run TFIDF retriever baseline method which does not require any above command.
 ```
-pytho3n main.py --cfg configs/main/baseline.yaml
+python3 main.py --cfg configs/main/baseline.yaml
 ```
 If you want to add new modules. Please, visit qatask/* and inherit classes base.py. For example, 
 ```
