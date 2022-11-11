@@ -9,14 +9,9 @@ reader:
   type: default
 retriever:
   type: colbertv2
+  translator: VietAI/envit5-translation
   top_k: 5
   index_path: checkpoint/indexes/colbert-v2/index
-preprocessor:
-  type: translate
-  model_translate: VietAI/envit5-translation
-postprocessor: 
-  type: translate
-  model_translate: VietAI/envit5-translation
 pipeline:
   type: default
 tokenizer:

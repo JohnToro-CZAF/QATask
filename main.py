@@ -38,30 +38,11 @@ class Pipeline:
         final_results = self.postprocessor(results)
         return final_results
 
-class Trans2Pipeline(Pipeline):
-    def __init__(self, cfg) -> None:
-        self.tokenizer = build_tokenizer(cfg.tokenizer)
-        if cfg.database.rebuild:
-            self.db = build_database(cfg.database)
-        else:
-            self.db = None
-        self.reader = build_reader(cfg.reader, self.tokenizer)
-        self.retriever = build_retriever(cfg.retriever, self.tokenizer, cfg.database.database_path)
-        self.postprocessor = build_postprocessor(cfg.postprocessor)
-        
-    def __call__(self, set_questions) -> str:
-        results = self.retriever(set_questions)
-        results = self.reader(results)
-        final_results = self.postprocessor(results)
-        return final_results
-
 @hydra.main(version_base=None, config_path="configs", config_name="baseline")
 def main(cfg : DictConfig) -> None:
     args = parse_arguments()
     if cfg.pipeline.type == "default":
         zaloai_pipeline = Pipeline(cfg)
-    elif cfg.pipeline.type == "trans2":
-        zaloai_pipeline = Trans2Pipeline(cfg)
     with open(osp.join(os.getcwd(), args.sample_path)) as f:
         file = json.loads(f.read())
     data = file['data']

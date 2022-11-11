@@ -1,4 +1,5 @@
 from pyserini.search import FaissSearcher
+from qatask.retriever.tfidf.doc_db import DocDB
 from .base import BaseRetriever
 
 searcher = FaissSearcher(
