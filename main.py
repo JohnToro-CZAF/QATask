@@ -1,14 +1,10 @@
 import os
-import numpy as np
-import torch 
-import torch.nn as nn
 from qatask.reader.builder import build_reader
 from qatask.retriever.builder import build_retriever
 from qatask.postprocessing.builder import build_postprocessor
 from qatask.database.builder import build_database
 from qatask.tokenizers.builder import build_tokenizer
-import hydra
-from omegaconf import DictConfig
+import omegaconf
 import os
 import os.path as osp
 import argparse
@@ -18,6 +14,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser("ZaloAI")
     parser.add_argument("--sample-path", type=str, default="qatask/database/datasets/sample_submission.json")
     parser.add_argument("--output-path", type=str, default="qatask/database/datasets/test_answer_submission.json")
+    parser.add_argument("--cfg", type=str, required=True)
     args = parser.parse_args()
     return args
 
@@ -38,9 +35,9 @@ class Pipeline:
         final_results = self.postprocessor(results)
         return final_results
 
-@hydra.main(version_base=None, config_path="configs", config_name="baseline")
-def main(cfg : DictConfig) -> None:
+def main() -> None:
     args = parse_arguments()
+    cfg = omegaconf.OmegaConf.load(args.cfg)
     if cfg.pipeline.type == "default":
         zaloai_pipeline = Pipeline(cfg)
     with open(osp.join(os.getcwd(), args.sample_path)) as f:

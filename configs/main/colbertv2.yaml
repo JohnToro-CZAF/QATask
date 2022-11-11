@@ -1,6 +1,6 @@
 database:
   type: sqlite
-  rebuild: True
+  rebuild: False
   dataset_path: qatask/database/datasets/data_wiki_cleaned
   database_path: qatask/database/wikipedia_db/wikisqlite.db # Path to the database file
   preprocess: qatask/preprocess/wiki_preprocess.py
@@ -11,7 +11,7 @@ retriever:
   type: colbertv2
   translator: VietAI/envit5-translation
   top_k: 5
-  index_path: checkpoint/indexes/colbert-v2/index
+  index_path: checkpoint/indexes/colbert-v2/
 pipeline:
   type: default
 tokenizer:
