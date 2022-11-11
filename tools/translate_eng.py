@@ -1,7 +1,12 @@
-from qatask.retriever.tfidf.doc_db import DocDB
+from qatask.retriever.tfidf.doc_db import DocDB as _DocDB
 
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader
+import torch.multiprocessing as mp
+from torch.utils.data.distributed import DistributedSampler
+from torch.distributed import init_process_group
+
 import argparse
 import sqlite3
 import json
@@ -9,6 +14,7 @@ import os
 import sys
 import logging
 from tqdm import tqdm
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -17,44 +23,87 @@ console = logging.StreamHandler()
 console.setFormatter(fmt)
 logger.addHandler(console)
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+class DocDB(_DocDB):
+    def __init__(self, db_path):
+        super(DocDB, self).__init__(db_path)
+        self.doc_ids = self.get_doc_ids()
+        self.doc_text = [self.get_doc_text(id) for id in self.doc_ids]
+        self.tup = [(id, text) for id, text in zip(self.doc_ids, self.doc_text)]
+        self.__exit__()
+        self.connection = None
 
-# Sample: {"id": "doc1", "contents": "title1\ncontents of doc one."}
-def store_contents(doc_db, save_path, model, tokenizer):
-    if os.path.isfile(save_path):
-        raise RuntimeError('%s already exists! Not overwriting.' % save_path)
-
-    doc_ids = doc_db.get_doc_ids()
-    with open(save_path, "w") as fp:
-        for doc_id in tqdm(doc_ids):
-            vn_text = "vi: " + doc_db.get_doc_text(doc_id)
-            outputs = model.generate(tokenizer(vn_text, return_tensors="pt", padding=True).input_ids.to(device), max_length=512)
-            en_text = tokenizer.batch_decode(outputs, skip_special_tokens=True)[0][4:]
-            temp = {
-                "id": str(doc_id),
-                "contents": en_text + "\n"
-            }
-            json.dump(temp, fp)
-            fp.write("\n")
     
-class FaissDatabase():
-    def __init__(self, cfg):
-        self.doc_db = DocDB(cfg.db_path)
-        self.tokenizer = AutoTokenizer.from_pretrained("VietAI/envit5-translation")  
-        self.model = AutoModelForSeq2SeqLM.from_pretrained("VietAI/envit5-translation")
+    def __getitem__(self, index):
+        return self.tup[index][0], " ".join(self.tup[index][1].split(" ")[:700])
+    
+    def __len__(self):
+        return len(self.doc_ids)
 
-        store_contents(self.doc_db, cfg.save_path, self.model, self.tokenizer)
-        self.doc_db.__exit__()
 
-if __name__ == '__main__':
-    # debugging purpose
+def store_contents(gpu, doc_db, save_path, dataloader, tokenizer, model, rank):
+    with open(save_path, "a") as fp:
+        if rank != 0:
+            for iter, (doc_ids, vn_texts) in enumerate(dataloader):
+                outputs = model.module.generate(
+                    tokenizer(vn_texts, return_tensors="pt", padding=True).input_ids.to(gpu), 
+                    max_length=512
+                )
+                en_texts = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
+                for doc_id, en_text in zip(doc_ids, en_texts):
+                    temp = {
+                        "id": str(doc_id),
+                        "contents": en_text[4:] + "\n"
+                    }
+                    json.dump(temp, fp)
+                    fp.write("\n")
+        else:
+            for iter, (doc_ids, vn_texts) in tqdm(enumerate(dataloader)):
+                outputs = model.module.generate(
+                    tokenizer(vn_texts, return_tensors="pt", padding=True).input_ids.to(gpu), 
+                    max_length=512
+                )
+                en_texts = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+
+                for doc_id, en_text in zip(doc_ids, en_texts):
+                    temp = {
+                        "id": str(doc_id),
+                        "contents": en_text[4:] + "\n"
+                    }
+                    json.dump(temp, fp)
+                    fp.write("\n")
+
+def train(gpu, args):
+    rank = args.nr * args.gpus + gpu
+    init_process_group(backend="nccl", init_method='env://', world_size=args.world_size, rank=rank)
+    torch.manual_seed(0)
+    torch.cuda.set_device(gpu)
+
+    tokenizer = AutoTokenizer.from_pretrained("VietAI/envit5-translation")
+    model = AutoModelForSeq2SeqLM.from_pretrained("VietAI/envit5-translation").cuda(gpu)
+    model = nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
+    
+    doc_db  = DocDB(args.db_path)
+    sampler = DistributedSampler(doc_db, num_replicas=args.world_size, rank=rank)
+    batch_size = args.effective_batch_size // torch.cuda.device_count()
+    dataloader = DataLoader(doc_db, batch_size=batch_size, pin_memory=False, shuffle=False, sampler=sampler)
+
+    store_contents(gpu, doc_db, args.save_path, dataloader, tokenizer, model, rank)
+
+def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument('--nodes', type=int, default=1)
+    parser.add_argument('--gpus', type=int, default=4)
+    parser.add_argument('--nr', type=int, default=0)
+    parser.add_argument('--local_rank', type=int, default=0)
     parser.add_argument('--db-path', default="qatask/database/wikipedia_db/wikisqlite.db", type=str)
     parser.add_argument('--save-path', default="qatask/database/wikipedia_faiss/wikipedia_pyserini_format.jsonl", type=str)
+    parser.add_argument('--effective-batch-size', type=int, default=2)
     args = parser.parse_args()
 
-    model = AutoModelForSeq2SeqLM.from_pretrained("VietAI/envit5-translation")
-    tokenizer = AutoTokenizer.from_pretrained("VietAI/envit5-translation")  
-    doc_db = DocDB(args.db_path)
-    store_contents(doc_db, args.save_path, model.cuda(), tokenizer)
-    doc_db.__exit__()
+    args.world_size = args.gpus * args.nodes
+    mp.spawn(train, nprocs=args.gpus, args=(args,))
+
+if __name__ == '__main__':
+    main()
+    

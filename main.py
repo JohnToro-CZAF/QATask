@@ -25,7 +25,7 @@ class Pipeline:
             self.db = build_database(cfg.database)
         else:
             self.db = None
-        self.reader = build_reader(cfg.reader, self.tokenizer)
+        self.reader = build_reader(cfg.reader, self.tokenizer, cfg.database.database_path)
         self.retriever = build_retriever(cfg.retriever, self.tokenizer, cfg.database.database_path)
         self.postprocessor = build_postprocessor(cfg.postprocessor)
         

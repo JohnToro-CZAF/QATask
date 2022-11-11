@@ -19,6 +19,7 @@ var/
 outputs/
 .empty/
 checkpoint/
+qatask/database/wikipedia_faiss/wikipedia_pyserini_format.json
 .installed.cfg
 *.egg
 

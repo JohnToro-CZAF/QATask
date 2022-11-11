@@ -31,7 +31,7 @@ as `qatask/database/datasets/data_wiki_cleaned/wikipedia.jsonl`
 Then run the following script:
 If you want to use Sirini retrievers you need to translate Vietnamese corpus into english and in Sirini format
 ```
-python3 -m tools.translate_eng 
+python3 -m torch.distributed.launch -m tools.translate_eng
 ```
 Then you can create a FAISS index for your favourite Sirini retriever by configs file 
 ```

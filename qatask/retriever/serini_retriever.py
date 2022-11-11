@@ -1,6 +1,9 @@
 from pyserini.search import FaissSearcher
 from qatask.retriever.tfidf.doc_db import DocDB
 from .base import BaseRetriever
+import sqlite3
+import os.path as osp
+import os
 
 class ColbertRetriever(BaseRetriever):
     def __init__(self, index_path, top_k, db_path):
@@ -10,6 +13,8 @@ class ColbertRetriever(BaseRetriever):
         )
         self.top_k = top_k
         self.docdb = DocDB(db_path)
+        con = sqlite3.connect(osp.join(os.getcwd(), db_path))
+        self.cur = con.cursor()
     
     def __call__(self, data):
         for question in data:
@@ -17,7 +22,9 @@ class ColbertRetriever(BaseRetriever):
             candidate_passages = []
             for i in range(0, self.top_k):
                 doc_id = hits[i].docid
-                passage_vn = self.docdb.get_doc_text(doc_id)
+                res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
+                wikipage = res.fetchone()
+                passage_vn = (doc_id, wikipage)
                 candidate_passages.append(passage_vn)
             question['candidate_passages'] = candidate_passages
         return data
@@ -30,6 +37,8 @@ class DPRRetriever(BaseRetriever):
         )
         self.top_k = top_k
         self.docdb = DocDB(db_path)
+        con = sqlite3.connect(osp.join(os.getcwd(), db_path))
+        self.cur = con.cursor()
     
     def __call__(self, data):
         for question in data:
@@ -37,7 +46,9 @@ class DPRRetriever(BaseRetriever):
             candidate_passages = []
             for i in range(0, self.top_k):
                 doc_id = hits[i].docid
-                passage_vn = self.docdb.get_doc_text(doc_id)
+                res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
+                wikipage = res.fetchone()
+                passage_vn = (doc_id, wikipage)
                 candidate_passages.append(passage_vn)
             question['candidate_passages'] = candidate_passages
         return data
@@ -50,6 +61,8 @@ class ANCERetriever(BaseRetriever):
         )
         self.top_k = top_k
         self.docdb = DocDB(db_path)
+        con = sqlite3.connect(osp.join(os.getcwd(), db_path))
+        self.cur = con.cursor()
     
     def __call__(self, data):
         for question in data:
@@ -57,7 +70,9 @@ class ANCERetriever(BaseRetriever):
             candidate_passages = []
             for i in range(0, self.top_k):
                 doc_id = hits[i].docid
-                passage_vn = self.docdb.get_doc_text(doc_id)
+                res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
+                wikipage = res.fetchone()
+                passage_vn = (doc_id, wikipage)
                 candidate_passages.append(passage_vn)
             question['candidate_passages'] = candidate_passages
         return data
