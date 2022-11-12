@@ -40,39 +40,25 @@ class DocDB(_DocDB):
         return len(self.doc_ids)
 
 
-def store_contents(gpu, doc_db, save_path, dataloader, tokenizer, model, rank):
-    with open(save_path, "a") as fp:
-        if rank != 0:
-            for iter, (doc_ids, vn_texts) in enumerate(dataloader):
-                outputs = model.module.generate(
-                    tokenizer(vn_texts, return_tensors="pt", padding=True).input_ids.to(gpu), 
-                    max_length=512
-                )
-                en_texts = tokenizer.batch_decode(outputs, skip_special_tokens=True)
+def store_contents(gpu, save_path, dataloader, tokenizer, model, rank):
+    rank_save_path = save_path[:-6] + f"_{rank}" + ".jsonl"
+    with open(rank_save_path, "w") as fp:
+        run_loop = enumerate(dataloader) if rank != 0 else tqdm(enumerate(dataloader))
+        for iter, (doc_ids, vn_texts) in run_loop:
+            outputs = model.module.generate(
+                tokenizer(vn_texts, return_tensors="pt", padding=True).input_ids.to(gpu), 
+                max_length=512
+            )
+            en_texts = tokenizer.batch_decode(outputs, skip_special_tokens=True)
 
-                for doc_id, en_text in zip(doc_ids, en_texts):
-                    temp = {
-                        "id": str(doc_id),
-                        "contents": en_text[4:] + "\n"
-                    }
-                    json.dump(temp, fp)
-                    fp.write("\n")
-        else:
-            for iter, (doc_ids, vn_texts) in tqdm(enumerate(dataloader)):
-                outputs = model.module.generate(
-                    tokenizer(vn_texts, return_tensors="pt", padding=True).input_ids.to(gpu), 
-                    max_length=512
-                )
-                en_texts = tokenizer.batch_decode(outputs, skip_special_tokens=True)
-
-                for doc_id, en_text in zip(doc_ids, en_texts):
-                    temp = {
-                        "id": str(doc_id),
-                        "contents": en_text[4:] + "\n"
-                    }
-                    json.dump(temp, fp)
-                    fp.write("\n")
-
+            for doc_id, en_text in zip(doc_ids, en_texts):
+                temp = {
+                    "id": str(doc_id),
+                    "contents": en_text[4:] + "\n"
+                }
+                json.dump(temp, fp)
+                fp.write("\n")
+        
 def train(gpu, args):
     rank = args.nr * args.gpus + gpu
     init_process_group(backend="nccl", init_method='env://', world_size=args.world_size, rank=rank)
@@ -88,22 +74,31 @@ def train(gpu, args):
     batch_size = args.effective_batch_size // torch.cuda.device_count()
     dataloader = DataLoader(doc_db, batch_size=batch_size, pin_memory=False, shuffle=False, sampler=sampler)
 
-    store_contents(gpu, doc_db, args.save_path, dataloader, tokenizer, model, rank)
+    store_contents(gpu, args.save_path, dataloader, tokenizer, model, rank)
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--nodes', type=int, default=1)
-    parser.add_argument('--gpus', type=int, default=4)
+    parser.add_argument('--gpus', type=int, default=2)
     parser.add_argument('--nr', type=int, default=0)
     parser.add_argument('--local_rank', type=int, default=0)
     parser.add_argument('--db-path', default="qatask/database/wikipedia_db/wikisqlite.db", type=str)
     parser.add_argument('--save-path', default="qatask/database/wikipedia_faiss/wikipedia_pyserini_format.jsonl", type=str)
     parser.add_argument('--effective-batch-size', type=int, default=2)
+    parser.add_argument('--save-path', default="/kaggle/working/file.jsonl", type=str)
     args = parser.parse_args()
 
     args.world_size = args.gpus * args.nodes
     mp.spawn(train, nprocs=args.gpus, args=(args,))
 
+    # Merge jsonl files
+    with open(args.save_path, "w") as fp:
+        for gpu in range(args.gpus):
+            rank_save_path = args.save_path[:-6] + f"_{gpu}" + ".jsonl"
+            with open(rank_save_path) as temp_fp:
+                for line in temp_fp:
+                    json.dump(json.loads(line), fp)
+                    fp.write("\n")
+    
 if __name__ == '__main__':
     main()
-    
