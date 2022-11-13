@@ -74,7 +74,7 @@ class BM25PostProcessor(BasePostProcessor):
                     for d in question['answer']:
                         if d.isdigit():
                             tmpans = d
-                    question['answer'] = d
+                    question['answer'] = tmpans
                 continue
             hits = self.searcher.search(question['answer'])
             # try:
@@ -94,11 +94,10 @@ class BM25PostProcessor(BasePostProcessor):
                 res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (doc_id, ))
                 wikipage = res.fetchone()
                 wikipages.append(wikipage[0])
-            choices = [wikipage[0][5:].replace("_", " ") for wikipage in wikipages]
+            choices = [wikipage[5:].replace("_", " ") for wikipage in wikipages]
             try:
                 wikipage = process.extractOne(question['answer'], choices)[0]
                 question['answer'] = 'wiki/' + wikipage.replace(" ", "_")
-                question['answer'] = wikipage
             except:
                 print("can no retrieve this question wikipage")
              
