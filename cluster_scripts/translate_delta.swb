@@ -10,4 +10,4 @@
 module load opence
 conda activate mmpose
 cd QATask
-srun python3 -m torch.distributed.launch -m tools.translate_eng --gpus 4 --id-start 400000 900000
+srun python3 -m torch.distributed.launch -m tools.translate_eng --gpus 4 --id-start 400000 --id-end 900000
