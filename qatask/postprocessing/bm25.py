@@ -62,18 +62,25 @@ class BM25PostProcessor(BasePostProcessor):
                     pass
                 continue
             hits = self.searcher.search(question['answer'])
-            try:
+            # try:
                 # doc_id = hits[0].docid
                 # res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
                 # wikipage = res.fetchone()
                 # TODO: There are many canidate wikipage -> find the one who is 
                 # nearest
-                doc_ids = []
-                for i in range(0, self.top_k):
+            doc_ids = []
+            for i in range(0, self.top_k):
+                try:
                     doc_ids.append(hits[i].docid)
-                res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (doc_ids, ))
-                wikipages = res.fetchall()
-                choices = [wikipage[0][5:].replace("_", " ") for wikipage in wikipages]
+                except:
+                    break
+            wikipages = []
+            for doc_id in doc_ids:
+                res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (doc_id, ))
+                wikipage = res.fetchone()
+                wikipages.append(wikipage[0])
+            choices = [wikipage[0][5:].replace("_", " ") for wikipage in wikipages]
+            try:
                 wikipage = process.extractOne(question['answer'], choices)[0]
                 question['answer'] = 'wiki/' + wikipage.replace(" ", "_")
                 question['answer'] = wikipage

@@ -32,3 +32,5 @@ qatask/database/datasets/train_test_files/*
 saved_models/*
 qatask/database/wikipedia_faiss/*
 qatask/database/wikipedia_faiss/wikipedia_pyserini_format.jsonl
+
+.vscode-upload.json
