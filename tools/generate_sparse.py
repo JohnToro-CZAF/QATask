@@ -13,7 +13,7 @@ def parse_arguments():
 
 def sparse_generator(cfg):
     subprocess.call("sh tools/index_sparse.sh {} {} {} {}".format(cfg.corpus,
-                            cfg.language, "checkpoint/indexes/BM25/index", cfg.threads), shell=True)
+                            cfg.language, cfg.index_path , cfg.threads), shell=True)
 def main():
     args = parse_arguments()
     sparse_generator(omegaconf.OmegaConf.load(args.cfg))

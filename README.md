@@ -38,6 +38,13 @@ Generate BM25 index. First, make `checkpoint/indexes/BM25` folder, then run this
 ```
 python3 tools/generate_sparse.py --cfg configs/retriever/BM25.yaml
 ```
+If you want to use BM25 post processor which retrieves wikipage as answer given a short candidate (produced by BERT), run this
+```
+python3 -m tools.convert_wikipage_sirini --data-path qatask/database/datasets/data_wiki_cleaned/wikipedia_20220620_cleaned.jsonl --output-path qatask/database/datasets/wiki_pages/wikipages.jsonl 
+```
+```
+python3 tools/generate_sparse.py --cfg configs/postprocessor/BM25.yaml
+```
 After getting BM25 index, run main pipeline to output 
 ```
 python3 main.py --cfg configs/main/BM25_bert.yaml \

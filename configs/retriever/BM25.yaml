@@ -1,3 +1,4 @@
 language: vn
 corpus: qatask/database/datasets/wiki_vn
 threads: 32
+index_path: checkpoint/indexes/BM25/index

@@ -15,7 +15,8 @@ retriever:
   index_path: checkpoint/indexes/BM25/index
 postprocessor: 
   type: bm25
-  index_path: checkpoint/indexes/BM25/index
+  top_k: 10
+  index_path: checkpoint/indexes/BM25_post/index
 pipeline:
   type: default
 tokenizer:
