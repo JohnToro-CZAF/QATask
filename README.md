@@ -30,6 +30,17 @@ To clean the wiki articles, run
 ```
 python3 -m tools.convert_format_sirini --data-path qatask/database/datasets/data_wiki_cleaned/wikipedia_20220620_cleaned.jsonl --output-path qatask/database/datasets/wiki_vn/wikipedia_cleaned.jsonl
 ```
+
+##BM25
+Generate BM25 index. First, make `checkpoint/indexes/BM25` folder, then run this command to make BM25 index.
+```
+python3 tools/generate_sparse.py --cfg configs/retriever/BM25.yaml
+```
+After getting BM25 index, run main pipeline to output 
+```
+python3 main.py --cfg configs/main/BM25_bert.yaml --output-path qatask/database/datasets/output/bm25_bert.json
+```
+##Faiss Retriever
 Then run the following script:
 If you want to use Sirini retrievers you need to translate Vietnamese corpus into english and in Sirini format
 ```

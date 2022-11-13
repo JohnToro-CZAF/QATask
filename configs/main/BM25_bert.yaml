@@ -1,0 +1,22 @@
+database:
+  type: sqlite
+  rebuild: False
+  dataset_path: qatask/database/datasets/data_wiki_cleaned
+  database_path: qatask/database/wikipedia_db/wikisqlite.db # Path to the database file
+  preprocess: qatask/preprocess/wiki_preprocess.py
+  num_workers: 32
+reader: 
+  type: bert_xlm
+  model_checkpoint: nguyenvulebinh/vi-mrc-large
+  batch_size: 30 #can up to 600 on RTX 3090 
+retriever:
+  type: bm25
+  top_k: 1
+  index_path: checkpoint/indexes/BM25/index
+postprocessor: 
+  type: bm25
+  index_path: checkpoint/indexes/BM25/index
+pipeline:
+  type: default
+tokenizer:
+  type: vnm

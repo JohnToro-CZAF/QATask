@@ -5,6 +5,7 @@ from .base import BaseRetriever
 import sqlite3
 import os.path as osp
 import os
+from tqdm import tqdm
 
 class ColbertRetriever(BaseRetriever):
     def __init__(self, index_path, top_k, db_path):
@@ -19,7 +20,8 @@ class ColbertRetriever(BaseRetriever):
         self.setup_translator()
 
     def __call__(self, data):
-        for question in data:
+        print("Retrieving passages...")
+        for question in tqdm(data):
             hits = self.searcher.search(self.translate(question['question']))
             candidate_passages = []
             for i in range(0, self.top_k):
@@ -73,7 +75,8 @@ class BM25Retriever(BaseRetriever):
         self.cur = con.cursor()
     
     def __call__(self, data):
-        for question in data:
+        print("Retrieving passages...")
+        for question in tqdm(data):
             hits = self.searcher.search(question['question'])
             candidate_passages = []
             for i in range(0, self.top_k):
@@ -83,6 +86,7 @@ class BM25Retriever(BaseRetriever):
                 passage_vn = (doc_id, wikipage)
                 candidate_passages.append(passage_vn)
             question['candidate_passages'] = candidate_passages
+        print("Retrieved passages.")
         return data
 
 if __name__ == "__main__":
