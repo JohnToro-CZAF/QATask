@@ -12,6 +12,8 @@ retriever:
   translator: VietAI/envit5-translation
   top_k: 5
   index_path: checkpoint/indexes/colbert-v2/
+postprocessor: 
+  type: default
 pipeline:
   type: default
 tokenizer:

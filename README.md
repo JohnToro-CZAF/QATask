@@ -27,7 +27,10 @@ Download and save ZaloAI's datasets:
 - [wiki articles](https://dl-challenge.zalo.ai/e2e-question-answering/wikipedia_20220620_cleaned.zip) 
 as `qatask/database/datasets/data_wiki_cleaned/wikipedia.jsonl`
 - [Train and test files](https://dl-challenge.zalo.ai/e2e-question-answering/e2eqa-train+public_test-v1.zip) as `qatask/database/datasets/train_test_files/train_merged_final.json` and `qatask/database/datasets/train_test_files/test_sample.json`
-
+To clean the wiki articles, run 
+```
+python3 -m tools.clean_wiki --data-path qatask/database/datasets/data_wiki_cleaned/wikipedia.jsonl --output-path qatask/database/datasets/data_wiki_cleaned/wikipedia_cleaned.jsonl
+```
 Then run the following script:
 If you want to use Sirini retrievers you need to translate Vietnamese corpus into english and in Sirini format
 ```
@@ -39,7 +42,7 @@ python3 tools/generating_dense.py --cfg configs/retriever/colbertv2.yaml
 ``` 
 Now you can have Sirini searcher as a normal retriever like TFIDF.  Just run `main` with your config `configs/colbertv2.yaml` 
 ```
-python3 main.py --cfg configs/main/colbertv2.yaml
+python3 main.py --cfg configs/main/colbertv2.yaml --output-path qatask/database/datasets/output/colbertv2_answer.json 
 ```
 Or you can run TFIDF retriever baseline method which does not require any above command.
 ```
