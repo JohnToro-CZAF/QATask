@@ -10,7 +10,7 @@
 - [x] Attaching ID for each wiki article
 - [x] SQL retrieving according to ID
 - [x] Retriever returns ID
-- [ ] Build a reader
+- [x] Build a reader
 
 ## Possible retrievers:
 - [x] TF-IDF
@@ -26,38 +26,46 @@ Download and save ZaloAI's datasets:
 - [wiki articles](https://dl-challenge.zalo.ai/e2e-question-answering/wikipedia_20220620_cleaned.zip) 
 as `qatask/database/datasets/data_wiki_cleaned/wikipedia.jsonl`
 - [Train and test files](https://dl-challenge.zalo.ai/e2e-question-answering/e2eqa-train+public_test-v1.zip) as `qatask/database/datasets/train_test_files/train_merged_final.json` and `qatask/database/datasets/train_test_files/test_sample.json`
-To clean the wiki articles, run 
+
+To clean the wiki articles, run:
 ```
-python3 -m tools.convert_format_sirini --data-path qatask/database/datasets/data_wiki_cleaned/wikipedia_20220620_cleaned.jsonl --output-path qatask/database/datasets/wiki_vn/wikipedia_cleaned.jsonl
+python3 -m tools.convert_format_sirini --data-path qatask/database/datasets/data_wiki_cleaned/wikipedia_20220620_cleaned.jsonl \
+                                       --output-path qatask/database/datasets/wiki_vn/wikipedia_cleaned.jsonl
 ```
 
-##BM25
+## TFIDF
+You can quickly run a baseline method, TFIDF retriever, by just the following line:
+```
+python3 main.py --cfg configs/main/baseline.yaml
+```
+
+## BM25
 Generate BM25 index. First, make `checkpoint/indexes/BM25` folder, then run this command to make BM25 index.
 ```
 python3 tools/generate_sparse.py --cfg configs/retriever/BM25.yaml
 ```
 After getting BM25 index, run main pipeline to output 
 ```
-python3 main.py --cfg configs/main/BM25_bert.yaml --output-path qatask/database/datasets/output/bm25_bert.json
+python3 main.py --cfg configs/main/BM25_bert.yaml \
+                --output-path qatask/database/datasets/output/bm25_bert.json
 ```
-##Faiss Retriever
-Then run the following script:
-If you want to use Sirini retrievers you need to translate Vietnamese corpus into english and in Sirini format
+
+## Faiss Retriever
+Before you can use Sirini retrievers you need to do the following:
 ```
+# translate Vietnamese corpus into english and change to Sirini format
 python3 -m torch.distributed.launch -m tools.translate_eng
-```
-Then you can create a FAISS index for your favourite Sirini retriever by configs file 
-```
+
+# Create a FAISS index for your favourite Sirini retriever by configs file 
 python3 tools/generating_dense.py --cfg configs/retriever/colbertv2.yaml 
 ``` 
-Now you can have Sirini searcher as a normal retriever like TFIDF.  Just run `main` with your config `configs/colbertv2.yaml` 
+Now you can have a Sirini searcher works like a normal retriever (e.g. TFIDF). Just run `main` with your config `configs/colbertv2.yaml`:
 ```
-python3 main.py --cfg configs/main/colbertv2.yaml --output-path qatask/database/datasets/output/colbertv2_answer.json 
+python3 main.py --cfg configs/main/colbertv2.yaml \
+                --output-path qatask/database/datasets/output/colbertv2_answer.json 
 ```
-Or you can run TFIDF retriever baseline method which does not require any above command.
-```
-python3 main.py --cfg configs/main/baseline.yaml
-```
+
+## Future Work
 If you want to add new modules. Please, visit qatask/* and inherit classes base.py. For example, 
 ```
 XLMReader(BaseReader):
