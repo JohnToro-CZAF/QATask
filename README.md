@@ -13,12 +13,11 @@
 - [ ] Build a reader
 
 ## Possible retrievers:
-- [ ] KNN
 - [x] TF-IDF
-- [ ] BM25
-- [ ] Elastic search
-- [ ] Exact string matching + POS and NER feature-based search
+- [x] BM25
 - [x] DPR = BERT trained on question+context_passage vietnamese embeddings + FAISS for searching
+- [x] ANCE
+- [x] ColBertv2
 
 ## How to create database sqlite
 First, create a folder named `qatask/database/wikipedia_db` with a `__init__.py` iniside it.
@@ -29,7 +28,7 @@ as `qatask/database/datasets/data_wiki_cleaned/wikipedia.jsonl`
 - [Train and test files](https://dl-challenge.zalo.ai/e2e-question-answering/e2eqa-train+public_test-v1.zip) as `qatask/database/datasets/train_test_files/train_merged_final.json` and `qatask/database/datasets/train_test_files/test_sample.json`
 To clean the wiki articles, run 
 ```
-python3 -m tools.clean_wiki --data-path qatask/database/datasets/data_wiki_cleaned/wikipedia.jsonl --output-path qatask/database/datasets/data_wiki_cleaned/wikipedia_cleaned.jsonl
+python3 -m tools.convert_format_sirini --data-path qatask/database/datasets/data_wiki_cleaned/wikipedia_20220620_cleaned.jsonl --output-path qatask/database/datasets/wiki_vn/wikipedia_cleaned.jsonl
 ```
 Then run the following script:
 If you want to use Sirini retrievers you need to translate Vietnamese corpus into english and in Sirini format

@@ -1,4 +1,5 @@
 from pyserini.search import FaissSearcher
+from pyserini.search.lucene import LuceneSearcher
 from qatask.retriever.tfidf.doc_db import DocDB
 from .base import BaseRetriever
 import sqlite3
@@ -62,6 +63,27 @@ class ANCERetriever(ColbertRetriever):
         con = sqlite3.connect(osp.join(os.getcwd(), db_path))
         self.cur = con.cursor()
     
+class BM25Retriever(BaseRetriever):
+    def __init__(self, index_path, top_k, db_path):
+        self.searcher = LuceneSearcher(index_path)
+        self.searcher.set_language('vn')
+        self.top_k = top_k
+        self.docdb = DocDB(db_path)
+        con = sqlite3.connect(osp.join(os.getcwd(), db_path))
+        self.cur = con.cursor()
+    
+    def __call__(self, data):
+        for question in data:
+            hits = self.searcher.search(question['question'])
+            candidate_passages = []
+            for i in range(0, self.top_k):
+                doc_id = hits[i].docid
+                res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
+                wikipage = res.fetchone()
+                passage_vn = (doc_id, wikipage)
+                candidate_passages.append(passage_vn)
+            question['candidate_passages'] = candidate_passages
+        return data
 
 if __name__ == "__main__":
     searcher = FaissSearcher(

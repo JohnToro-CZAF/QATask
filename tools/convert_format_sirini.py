@@ -11,14 +11,17 @@ def parse_arguments():
 def main():
     args = parse_arguments()
     data_path = args.data_path
-    documents = []
     with open(args.output_path, "w") as g:
         with open(data_path) as f:
             for line in f:
                 # Parse document
                 doc = json.loads(line)
                 doc = preprocess_json(doc)
-                json.dump(doc, g)
+                temp = {
+                    "id": doc['id'],
+                    "contents": doc['text'] + " \n"
+                }
+                json.dump(temp, g)
                 g.write("\n")
 if __name__ == "__main__":
     main()

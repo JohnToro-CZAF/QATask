@@ -4,8 +4,6 @@
 #SBATCH --error="HAL_outputs/vid.%j.%N.err"
 #SBATCH --partition=gpux4
 #SBATCH --time=24
-
-
   
 module load opence
 conda activate mmpose
