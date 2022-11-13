@@ -6,6 +6,7 @@ import os.path as osp
 import sqlite3
 from tqdm import tqdm
 from fuzzywuzzy import process
+import string
 
 class BM25PostProcessor(BasePostProcessor):
     def __init__(self, cfg, db_path):
@@ -18,9 +19,14 @@ class BM25PostProcessor(BasePostProcessor):
         con = sqlite3.connect(osp.join(os.getcwd(), db_path))
         self.cur = con.cursor()
     
-    def checktype(self, text):
-        text = text.lower()
+    def checktype(self, text, question):
+        text = text.lower().translate(str.maketrans('','',string.punctuation))
+        words = text.split()
         """Check if the text is a date or a number."""
+        if "bao nhiêu" in question:
+            for d in words:
+                if d.isdigit():
+                    return 1
         if text == "":
             return 3
         words = text.split()
@@ -31,15 +37,20 @@ class BM25PostProcessor(BasePostProcessor):
             return 1
         return 0
 
-    def date_transform(self, text):
-        text = text.lower()
+    def date_transform(self, text, question):
+        text = text.lower().translate(str.maketrans('','',string.punctuation))
         words = text.split()
         lookup = {'năm': '', 'tháng': '', 'ngày': ''}
+        for w in words:
+            pass
         for idx, w in enumerate(words):
             if w in lookup and idx+1 < len(words):
                 if(words[idx+1].isdigit()):
                     lookup[w] = words[idx+1]
         ans = ""
+        if 'năm nào' in question:
+            ans += 'năm ' + lookup['năm'] + " "
+            return ans
         if lookup['ngày'] != "":
             ans += 'ngày ' + lookup['ngày'] + " "
         if lookup['tháng'] != "":
@@ -52,14 +63,18 @@ class BM25PostProcessor(BasePostProcessor):
     def process(self, data):
         print("Postprocessing...")
         for question in tqdm(data["data"]):
-            anstype = self.checktype(question['answer'])
+            anstype = self.checktype(question['answer'], question['question'])
             if anstype > 0:
                 if anstype == 3:
                     question['answer'] = 'null'
                 elif anstype == 2:
-                    question['answer'] = self.date_transform(question['answer'])
+                    question['answer'] = self.date_transform(question['answer'], question['question'])
                 elif anstype == 1:
-                    pass
+                    tmpans = None
+                    for d in question['answer']:
+                        if d.isdigit():
+                            tmpans = d
+                    question['answer'] = d
                 continue
             hits = self.searcher.search(question['answer'])
             try:
