@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from underthesea import word_tokenize, text_normalize, sent_tokenize
+from underthesea import word_tokenize, sent_tokenize, text_normalize
 from .tokenizer import Tokens, Tokenizer
 import time
 

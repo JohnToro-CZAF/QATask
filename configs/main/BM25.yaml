@@ -8,10 +8,9 @@ database:
 reader: 
   type: default
 retriever:
-  type: colbertv2
-  translator: VietAI/envit5-translation
+  type: bm25
   top_k: 5
-  index_path: checkpoint/indexes/colbert-v2/
+  index_path: checkpoint/indexes/BM25/index
 postprocessor: 
   type: default
 pipeline:

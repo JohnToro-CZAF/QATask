@@ -1,4 +1,4 @@
 shard_num: 1
 retriever: colbertv2
 batch_size: 32
-corpus: qatask/database/wikipedia_faiss/wikipedia_pyserini_format.json
+corpus: "qatask/database/wikipedia_faiss/wikipedia_pyserini_format.jsonl"

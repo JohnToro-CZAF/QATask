@@ -1,0 +1,11 @@
+#!/bin/bash
+#SBATCH --job-name="Unified"
+#SBATCH --output="HAL_outputs/vid.%j.%N.out"
+#SBATCH --error="HAL_outputs/vid.%j.%N.err"
+#SBATCH --partition=gpux4
+#SBATCH --time=24
+  
+module load opence
+conda activate mmpose
+cd QATask
+srun python3 -m torch.distributed.launch -m tools.translate_eng --gpus 4 --id-start 400000 --id-end 900000 --effective-batch-size 100

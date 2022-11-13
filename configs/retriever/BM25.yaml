@@ -1,0 +1,3 @@
+language: vn
+corpus: qatask/database/datasets/wiki_vn
+threads: 32

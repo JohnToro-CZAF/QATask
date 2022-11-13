@@ -24,11 +24,12 @@ console.setFormatter(fmt)
 logger.addHandler(console)
 
 class DocDB(_DocDB):
-    def __init__(self, db_path):
+    def __init__(self, db_path, id_start=0, id_end=400000):
         super(DocDB, self).__init__(db_path)
+        self.len = id_end-id_start-1
         self.doc_ids = self.get_doc_ids()
         self.doc_text = [self.get_doc_text(id) for id in self.doc_ids]
-        self.tup = [(id, text) for id, text in zip(self.doc_ids, self.doc_text)]
+        self.tup = [(id, text) for id, text in zip(self.doc_ids, self.doc_text)][id_start:id_end]
         self.__exit__()
         self.connection = None
 
@@ -37,7 +38,7 @@ class DocDB(_DocDB):
         return self.tup[index][0], " ".join(self.tup[index][1].split(" ")[:700])
     
     def __len__(self):
-        return len(self.doc_ids)
+        return self.len
 
 
 def store_contents(gpu, save_path, dataloader, tokenizer, model, rank):
@@ -58,6 +59,14 @@ def store_contents(gpu, save_path, dataloader, tokenizer, model, rank):
                 }
                 json.dump(temp, fp)
                 fp.write("\n")
+
+            for doc_id, en_text in zip(doc_ids, en_texts):
+                temp = {
+                    "id": str(doc_id),
+                    "contents": en_text[4:] + "\n"
+                }
+                json.dump(temp, fp)
+                fp.write("\n")
         
 def train(gpu, args):
     rank = args.nr * args.gpus + gpu
@@ -69,23 +78,24 @@ def train(gpu, args):
     model = AutoModelForSeq2SeqLM.from_pretrained("VietAI/envit5-translation").cuda(gpu)
     model = nn.parallel.DistributedDataParallel(model, device_ids=[gpu])
     
-    doc_db  = DocDB(args.db_path)
+    doc_db  = DocDB(args.db_path, args.id_start, args.id_end)
     sampler = DistributedSampler(doc_db, num_replicas=args.world_size, rank=rank)
     batch_size = args.effective_batch_size // torch.cuda.device_count()
     dataloader = DataLoader(doc_db, batch_size=batch_size, pin_memory=False, shuffle=False, sampler=sampler)
-
     store_contents(gpu, args.save_path, dataloader, tokenizer, model, rank)
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--nodes', type=int, default=1)
-    parser.add_argument('--gpus', type=int, default=2)
+    parser.add_argument('--gpus', type=int, default=3)
     parser.add_argument('--nr', type=int, default=0)
     parser.add_argument('--local_rank', type=int, default=0)
+    parser.add_argument('--id-start', type=int, required=True, help="(0,600000")
+    parser.add_argument('--id-end', type=int, required=True)
     parser.add_argument('--db-path', default="qatask/database/wikipedia_db/wikisqlite.db", type=str)
     parser.add_argument('--save-path', default="qatask/database/wikipedia_faiss/wikipedia_pyserini_format.jsonl", type=str)
-    parser.add_argument('--effective-batch-size', type=int, default=2)
-    parser.add_argument('--save-path', default="/kaggle/working/file.jsonl", type=str)
+    parser.add_argument('--effective-batch-size', type=int, default=27)
+
     args = parser.parse_args()
 
     args.world_size = args.gpus * args.nodes
@@ -99,6 +109,6 @@ def main():
                 for line in temp_fp:
                     json.dump(json.loads(line), fp)
                     fp.write("\n")
-    
+
 if __name__ == '__main__':
     main()

@@ -12,8 +12,8 @@ import json
 
 def parse_arguments():
     parser = argparse.ArgumentParser("ZaloAI")
-    parser.add_argument("--sample-path", type=str, default="qatask/database/datasets/sample_submission.json")
-    parser.add_argument("--output-path", type=str, default="qatask/database/datasets/test_answer_submission.json")
+    parser.add_argument("--sample-path", type=str, default="qatask/database/datasets/train_test_files/test_sample.json")
+    parser.add_argument("--output-path", type=str, default="qatask/database/datasets/output/test_answer_submission.json")
     parser.add_argument("--cfg", type=str, required=True)
     args = parser.parse_args()
     return args
@@ -27,7 +27,7 @@ class Pipeline:
             self.db = None
         self.reader = build_reader(cfg.reader, self.tokenizer, cfg.database.database_path)
         self.retriever = build_retriever(cfg.retriever, self.tokenizer, cfg.database.database_path)
-        self.postprocessor = build_postprocessor(cfg.postprocessor)
+        self.postprocessor = build_postprocessor(cfg.postprocessor, cfg.database.database_path)
         
     def __call__(self, set_questions) -> str:
         results = self.retriever(set_questions)

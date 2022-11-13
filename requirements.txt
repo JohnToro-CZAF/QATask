@@ -2,3 +2,4 @@ pyvi
 underthesea
 elasticsearch
 pyserini
+optimum

@@ -6,14 +6,16 @@ database:
   preprocess: qatask/preprocess/wiki_preprocess.py
   num_workers: 32
 reader: 
-  type: default
+  type: bert_xlm
+  model_checkpoint: nguyenvulebinh/vi-mrc-large
+  batch_size: 30 #can up to 600 on RTX 3090 
 retriever:
-  type: colbertv2
-  translator: VietAI/envit5-translation
-  top_k: 5
-  index_path: checkpoint/indexes/colbert-v2/
+  type: bm25
+  top_k: 1
+  index_path: checkpoint/indexes/BM25/index
 postprocessor: 
-  type: default
+  type: bm25
+  index_path: checkpoint/indexes/BM25/index
 pipeline:
   type: default
 tokenizer:

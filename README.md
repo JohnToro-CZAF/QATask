@@ -13,12 +13,11 @@
 - [ ] Build a reader
 
 ## Possible retrievers:
-- [ ] KNN
 - [x] TF-IDF
-- [ ] BM25
-- [ ] Elastic search
-- [ ] Exact string matching + POS and NER feature-based search
+- [x] BM25
 - [x] DPR = BERT trained on question+context_passage vietnamese embeddings + FAISS for searching
+- [x] ANCE
+- [x] ColBertv2
 
 ## How to create database sqlite
 First, create a folder named `qatask/database/wikipedia_db` with a `__init__.py` iniside it.
@@ -27,7 +26,21 @@ Download and save ZaloAI's datasets:
 - [wiki articles](https://dl-challenge.zalo.ai/e2e-question-answering/wikipedia_20220620_cleaned.zip) 
 as `qatask/database/datasets/data_wiki_cleaned/wikipedia.jsonl`
 - [Train and test files](https://dl-challenge.zalo.ai/e2e-question-answering/e2eqa-train+public_test-v1.zip) as `qatask/database/datasets/train_test_files/train_merged_final.json` and `qatask/database/datasets/train_test_files/test_sample.json`
+To clean the wiki articles, run 
+```
+python3 -m tools.convert_format_sirini --data-path qatask/database/datasets/data_wiki_cleaned/wikipedia_20220620_cleaned.jsonl --output-path qatask/database/datasets/wiki_vn/wikipedia_cleaned.jsonl
+```
 
+##BM25
+Generate BM25 index. First, make `checkpoint/indexes/BM25` folder, then run this command to make BM25 index.
+```
+python3 tools/generate_sparse.py --cfg configs/retriever/BM25.yaml
+```
+After getting BM25 index, run main pipeline to output 
+```
+python3 main.py --cfg configs/main/BM25_bert.yaml --output-path qatask/database/datasets/output/bm25_bert.json
+```
+##Faiss Retriever
 Then run the following script:
 If you want to use Sirini retrievers you need to translate Vietnamese corpus into english and in Sirini format
 ```
@@ -39,7 +52,7 @@ python3 tools/generating_dense.py --cfg configs/retriever/colbertv2.yaml
 ``` 
 Now you can have Sirini searcher as a normal retriever like TFIDF.  Just run `main` with your config `configs/colbertv2.yaml` 
 ```
-python3 main.py --cfg configs/main/colbertv2.yaml
+python3 main.py --cfg configs/main/colbertv2.yaml --output-path qatask/database/datasets/output/colbertv2_answer.json 
 ```
 Or you can run TFIDF retriever baseline method which does not require any above command.
 ```
