@@ -60,6 +60,14 @@ def store_contents(gpu, save_path, dataloader, tokenizer, model, rank):
                 json.dump(temp, fp)
                 fp.write("\n")
 
+            for doc_id, en_text in zip(doc_ids, en_texts):
+                temp = {
+                    "id": str(doc_id),
+                    "contents": en_text[4:] + "\n"
+                }
+                json.dump(temp, fp)
+                fp.write("\n")
+        
 def train(gpu, args):
     rank = args.nr * args.gpus + gpu
     init_process_group(backend="nccl", init_method='env://', world_size=args.world_size, rank=rank)
@@ -87,6 +95,7 @@ def main():
     parser.add_argument('--db-path', default="qatask/database/wikipedia_db/wikisqlite.db", type=str)
     parser.add_argument('--save-path', default="qatask/database/wikipedia_faiss/wikipedia_pyserini_format.jsonl", type=str)
     parser.add_argument('--effective-batch-size', type=int, default=27)
+
     args = parser.parse_args()
 
     args.world_size = args.gpus * args.nodes
@@ -103,4 +112,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-    
