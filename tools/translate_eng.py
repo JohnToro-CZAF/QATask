@@ -26,6 +26,7 @@ logger.addHandler(console)
 class DocDB(_DocDB):
     def __init__(self, db_path, id_start=0, id_end=400000):
         super(DocDB, self).__init__(db_path)
+        self.len = id_end-id_start-1
         self.doc_ids = self.get_doc_ids()
         self.doc_text = [self.get_doc_text(id) for id in self.doc_ids]
         self.tup = [(id, text) for id, text in zip(self.doc_ids, self.doc_text)][id_start:id_end]
@@ -37,7 +38,7 @@ class DocDB(_DocDB):
         return self.tup[index][0], " ".join(self.tup[index][1].split(" ")[:700])
     
     def __len__(self):
-        return len(self.doc_ids)
+        return self.len
 
 
 def store_contents(gpu, save_path, dataloader, tokenizer, model, rank):
