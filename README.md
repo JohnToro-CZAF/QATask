@@ -33,25 +33,26 @@ python3 -m tools.convert_format_sirini --data-path qatask/database/datasets/data
                                        --output-path qatask/database/datasets/wiki_vn/wikipedia_cleaned.jsonl
 ```
 
-## TFIDF
-You can quickly run a baseline method, TFIDF retriever, by just the following line:
-```
-python3 main.py --cfg configs/main/baseline.yaml
-```
-
 ## BM25
 Generate BM25 index. First, make `checkpoint/indexes/BM25` folder, then run this command to make BM25 index.
 ```
 python3 tools/generate_sparse.py --cfg configs/retriever/BM25.yaml
+```
+If you want to use BM25 post processor which retrieves wikipage as answer given a short candidate (produced by BERT), run this
+```
+python3 -m tools.convert_wikipage_sirini --data-path qatask/database/datasets/data_wiki_cleaned/wikipedia_20220620_cleaned.jsonl --output-path qatask/database/datasets/wiki_pages/wikipages.jsonl 
+```
+```
+python3 tools/generate_sparse.py --cfg configs/postprocessor/BM25.yaml
 ```
 After getting BM25 index, run main pipeline to output 
 ```
 python3 main.py --cfg configs/main/BM25_bert.yaml \
                 --output-path qatask/database/datasets/output/bm25_bert.json
 ```
-
 ## Faiss Retriever
-Before you can use Sirini retrievers you need to do the following:
+Then run the following script:
+If you want to use Sirini retrievers you need to translate Vietnamese corpus into english and in Sirini format
 ```
 # translate Vietnamese corpus into english and change to Sirini format
 python3 -m torch.distributed.launch -m tools.translate_eng
@@ -61,11 +62,14 @@ python3 tools/generating_dense.py --cfg configs/retriever/colbertv2.yaml
 ``` 
 Now you can have a Sirini searcher works like a normal retriever (e.g. TFIDF). Just run `main` with your config `configs/colbertv2.yaml`:
 ```
-python3 main.py --cfg configs/main/colbertv2.yaml \
-                --output-path qatask/database/datasets/output/colbertv2_answer.json 
+python3 main.py --cfg configs/main/colbertv2.yaml --output-path qatask/database/datasets/output/colbertv2_answer.json 
 ```
-
-## Future Work
+## Main pipeline
+Or you can run TFIDF retriever baseline method which does not require any above command.
+```
+python3 main.py --cfg configs/main/baseline.yaml
+```
+## Customize
 If you want to add new modules. Please, visit qatask/* and inherit classes base.py. For example, 
 ```
 XLMReader(BaseReader):

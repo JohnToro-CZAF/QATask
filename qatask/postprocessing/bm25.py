@@ -14,6 +14,7 @@ class BM25PostProcessor(BasePostProcessor):
         self.searcher.set_language('vn')
         self.cfg = cfg
         self.docdb = DocDB(db_path)
+        self.top_k = cfg.top_k
         con = sqlite3.connect(osp.join(os.getcwd(), db_path))
         self.cur = con.cursor()
     
@@ -62,18 +63,19 @@ class BM25PostProcessor(BasePostProcessor):
                 continue
             hits = self.searcher.search(question['answer'])
             try:
-                doc_id = hits[0].docid
-                res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
-                wikipage = res.fetchone()
-                print(wikipage)
+                # doc_id = hits[0].docid
+                # res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
+                # wikipage = res.fetchone()
                 # TODO: There are many canidate wikipage -> find the one who is 
                 # nearest
-                # doc_ids = [(str(hit.docid), ) for hit in hits]
-                # res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (doc_ids, ))
-                # wikipages = res.fetchall()
-                # choices = [wikipage[0][5:].replace("_", " ") for wikipage in wikipages]
-                # wikipage = process.extractOne(question['answer], choices)[0]
-                # question['answer'] = 'wiki/' + wikipage.replace(" ", "_")
+                doc_ids = []
+                for i in range(0, self.top_k):
+                    doc_ids.append(hits[i].docid)
+                res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (doc_ids, ))
+                wikipages = res.fetchall()
+                choices = [wikipage[0][5:].replace("_", " ") for wikipage in wikipages]
+                wikipage = process.extractOne(question['answer'], choices)[0]
+                question['answer'] = 'wiki/' + wikipage.replace(" ", "_")
                 question['answer'] = wikipage
             except:
                 print("can no retrieve this question wikipage")

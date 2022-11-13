@@ -1,0 +1,4 @@
+language: vn
+corpus: qatask/database/datasets/wikipages
+threads: 32
+index_path: checkpoint/indexes/BM25_post/index
