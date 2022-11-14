@@ -6,6 +6,7 @@ import sqlite3
 import os.path as osp
 import os
 from tqdm import tqdm
+import ipdb
 
 class ColbertRetriever(BaseRetriever):
     def __init__(self, index_path, top_k, db_path):
@@ -83,6 +84,9 @@ class BM25Retriever(BaseRetriever):
                 doc_id = hits[i].docid
                 res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
                 wikipage = res.fetchone()
+                if wikipage is None:
+                    res = self.cur.execute("SELECT text FROM documents WHERE id= ?", (str(doc_id), )).fetchone()
+                    # print(res)
                 passage_vn = (doc_id, wikipage)
                 candidate_passages.append(passage_vn)
             question['candidate_passages'] = candidate_passages

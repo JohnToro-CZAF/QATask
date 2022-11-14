@@ -76,8 +76,14 @@ class BertReader(BaseReader):
       question = item['question']
       candidate_passages = item['candidate_passages']
       contexts = []
+      cnt = 0
       for doc_id, wikipage in candidate_passages:
-          context = self.cur.execute("SELECT text FROM documents WHERE id = ?", (str(doc_id), )).fetchone()        
+          context = self.cur.execute("SELECT text FROM documents WHERE id = ?", (str(doc_id), )).fetchone()
+          # print(doc_id) 
+          if context == None:
+            cnt += 1
+            print(doc_id, wikipage)
+            context = [""]
           contexts.append(context[0])
       _data.append({'question': question, 'contexts': contexts})
     prepared = self.prepare(_data)
@@ -99,7 +105,7 @@ class BertReader(BaseReader):
         if getattr(self.cfg, 'logpth') is not None:
           saved_logs['data'].append({'id':'testa_{}'.format(idx+1),
                                       'question':item['question'],
-                                      'answer': item['answer']})
+                                      'answer': item['answers']})
     if getattr(self.cfg, 'logpth') is not None:
       self.logging(saved_logs)
     print("reading done")
