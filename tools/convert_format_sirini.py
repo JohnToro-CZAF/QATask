@@ -6,6 +6,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser()
     parser.add_argument("--data-path", type=str, required=True)
     parser.add_argument("--output-path", type=str, required=True)
+    parser.add_argument("--need-preprocess", type=bool, default=False)
     return parser.parse_args()
 
 def main():
@@ -16,7 +17,8 @@ def main():
             for line in f:
                 # Parse document
                 doc = json.loads(line)
-                doc = preprocess_json(doc)
+                if args.need_preprocess:
+                    doc = preprocess_json(doc)
                 temp = {
                     "id": doc['id'],
                     "contents": doc['text'] + " \n"

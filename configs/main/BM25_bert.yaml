@@ -10,7 +10,6 @@ reader:
   model_checkpoint: nguyenvulebinh/vi-mrc-large
   batch_size: 50 #can up to 600 on RTX 3090 
   logpth: "logs/"
-
 retriever:
   type: bm25
   top_k: 10
