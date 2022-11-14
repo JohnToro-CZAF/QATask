@@ -76,8 +76,14 @@ class BertReader(BaseReader):
       question = item['question']
       candidate_passages = item['candidate_passages']
       contexts = []
+      cnt = 0
       for doc_id, wikipage in candidate_passages:
-          context = self.cur.execute("SELECT text FROM documents WHERE id = ?", (str(doc_id), )).fetchone()        
+          context = self.cur.execute("SELECT text FROM documents WHERE id = ?", (str(doc_id), )).fetchone()
+          # print(doc_id) 
+          if context == None:
+            cnt += 1
+            print(doc_id, wikipage)
+            context = [""]
           contexts.append(context[0])
       _data.append({'question': question, 'contexts': contexts})
     prepared = self.prepare(_data)
@@ -88,12 +94,20 @@ class BertReader(BaseReader):
       predicted.extend(predicted_batch)
     answer = self.postprocess(prepared, predicted)
     saved_format = {'data': []}
+    # ====================== Saving logs ===================
+    saved_logs = {'data': []}
     for idx, item in enumerate(answer):
         max_score = max(item['scores'])
         bestans = item['answers'][item['scores'].index(max_score)]
         saved_format['data'].append({'id':'testa_{}'.format(idx+1),
                                       'question':item['question'],
                                       'answer': bestans})
+        if getattr(self.cfg, 'logpth') is not None:
+          saved_logs['data'].append({'id':'testa_{}'.format(idx+1),
+                                      'question':item['question'],
+                                      'answer': item['answers']})
+    if getattr(self.cfg, 'logpth') is not None:
+      self.logging(saved_logs)
     print("reading done")
     return saved_format
   

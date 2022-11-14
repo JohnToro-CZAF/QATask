@@ -9,7 +9,7 @@ from fuzzywuzzy import process
 import string
 
 class BM25PostProcessor(BasePostProcessor):
-    def __init__(self, cfg, db_path):
+    def __init__(self, cfg=None, db_path=None):
         super().__init__(cfg, db_path)
         self.searcher = LuceneSearcher(cfg.index_path)
         self.searcher.set_language('vn')
@@ -23,9 +23,12 @@ class BM25PostProcessor(BasePostProcessor):
         text = text.lower().translate(str.maketrans('','',string.punctuation))
         words = text.split()
         """Check if the text is a date or a number."""
+        time_indicators = ["năm", "ngày", "tháng", "thời gian", "thời điểm", "lúc nào", "mùng nào"]
+        if any(idc in question.lower() for idc in time_indicators):
+            return 2
         if "bao nhiêu" in question:
             for d in words:
-                if d.isdigit():
+                if d.isnumeric():
                     return 1
         if text == "":
             return 3
@@ -40,41 +43,75 @@ class BM25PostProcessor(BasePostProcessor):
     def date_transform(self, text, question):
         text = text.lower().translate(str.maketrans('','',string.punctuation))
         words = text.split()
-        lookup = {'năm': '', 'tháng': '', 'ngày': ''}
-        for w in words:
-            pass
+        lookup = {'năm': '', 'tháng': '', 'ngày': '', 'mùng': ''}
         for idx, w in enumerate(words):
             if w in lookup and idx+1 < len(words):
-                if(words[idx+1].isdigit()):
+                if(words[idx+1].isnumeric()):
                     lookup[w] = words[idx+1]
         ans = ""
-        if 'năm nào' in question:
-            ans += 'năm ' + lookup['năm'] + " "
-            return ans
-        if lookup['ngày'] != "":
-            ans += 'ngày ' + lookup['ngày'] + " "
-        if lookup['tháng'] != "":
-            ans += 'tháng ' + lookup['tháng'] + " "
-        if lookup['năm'] != "":
-            ans += 'năm ' + lookup['năm'] + " "
-        ans = ans.strip()
-        return ans
+        lisw = ["ngày", "tháng", "năm"]
+        lisq = []
+        for w in lisw:
+            if w in question:
+                lisq.append(w)
+        if len(lisq) == 3 or len(lisq) == 2:
+            # day and month or full day -> Only take what it asked for
+            for w in lisq:
+                if lookup[w] != "":
+                    ans += w + " " + lookup[w] + " "
+                elif w == 'ngày' and lookup['mùng'] != "":
+                    ans += 'mùng' + ' ' + lookup["mùng"] + " "
+        elif len(lisq) == 1:
+            if(lisq[0] == "năm"):
+                if lookup[lisq[0]] != "":
+                    ans += lisq[0] + " " + lookup[lisq[0]]
+                    return ans
+                else:
+                    # There is no năm inside the answer text, have to search for literal
+                    for d in words:
+                        if d.isnumeric():
+                            return "năm" + " " + d
+            elif(lisq[0] == "tháng"):
+                if lookup[lisq[0]] != "":
+                    ans += lisq[0] + " " + lookup[lisq[0]]
+                    return ans
+                else :
+                    for d in words:
+                        if d.isnumeric():
+                            return "tháng" + " " + d
+            # question on day -> full day
+            for w in lisw:
+                if lookup[w] != "":
+                    ans += w + " " + lookup[w] + " "
+                elif w == 'ngày' and lookup['mùng'] != "":
+                    ans += 'mùng' + ' ' + lookup["mùng"] + " "
+        else:
+            # Asking a date but there is no indicator month, year, or day -> full day
+            for w in lisw:
+                if lookup[w] != "":
+                    ans += w + " " + lookup[w] + " "
+                elif w == 'ngày' and lookup['mùng'] != "":
+                    ans += 'mùng' + ' ' + lookup["mùng"] + " "
+        return ans.strip()
 
     def process(self, data):
         print("Postprocessing...")
         for question in tqdm(data["data"]):
             anstype = self.checktype(question['answer'], question['question'])
+            # print(anstype)
             if anstype > 0:
                 if anstype == 3:
                     question['answer'] = 'null'
                 elif anstype == 2:
                     question['answer'] = self.date_transform(question['answer'], question['question'])
+                    question['answer'] = question['answer'].strip()
                 elif anstype == 1:
-                    tmpans = None
-                    for d in question['answer']:
-                        if d.isdigit():
+                    tmpans = ""
+                    for d in question['answer'].lower().translate(str.maketrans('','',string.punctuation)).split():
+                        if d.isnumeric():
                             tmpans = d
                     question['answer'] = tmpans
+                    question['answer'] = question['answer'].strip()
                 continue
             hits = self.searcher.search(question['answer'])
             # try:
@@ -84,6 +121,7 @@ class BM25PostProcessor(BasePostProcessor):
                 # TODO: There are many canidate wikipage -> find the one who is 
                 # nearest
             doc_ids = []
+            # print("ok")
             for i in range(0, self.top_k):
                 try:
                     doc_ids.append(hits[i].docid)
@@ -94,8 +132,10 @@ class BM25PostProcessor(BasePostProcessor):
                 res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (doc_id, ))
                 wikipage = res.fetchone()
                 wikipages.append(wikipage[0])
+            # print(wikipages)
             choices = [wikipage[5:].replace("_", " ") for wikipage in wikipages]
             try:
+                # print("here", wikipage, process.extractOne(question['answer'], choices))
                 wikipage = process.extractOne(question['answer'], choices)[0]
                 question['answer'] = 'wiki/' + wikipage.replace(" ", "_")
             except:
@@ -106,9 +146,77 @@ class BM25PostProcessor(BasePostProcessor):
     def __call__(self, data):
         return self.process(data)
 
+def checktype(text, question):
+    text = text.lower().translate(str.maketrans('','',string.punctuation))
+    words = text.split()
+    """Check if the text is a date or a number."""
+    if "năm" or "ngày" or "tháng" in question:
+        return 2
+    if "bao nhiêu" in question:
+        for d in words:
+            if d.isnumeric():
+                return 1
+    if text == "":
+        return 3
+    words = text.split()
+    for w in words:
+        if w == 'năm' or w == 'tháng' or w == 'ngày':
+            return 2
+    if len(words) == 1 and words[0].isdigit():
+        return 1
+    return 0
+
+def date_transform(text, question):
+    text = text.lower().translate(str.maketrans('','',string.punctuation))
+    words = text.split()
+    lookup = {'năm': '', 'tháng': '', 'ngày': ''}
+    for idx, w in enumerate(words):
+        if w in lookup and idx+1 < len(words):
+            if(words[idx+1].isnumeric()):
+                lookup[w] = words[idx+1]
+    ans = ""
+    lisw = ["ngày", "tháng", "năm"]
+    lisq = []
+    for w in lisw:
+        if w in question:
+            lisq.append(w)
+    for w in lisq:
+        if lookup[w] != "":
+            ans += w + " " + lookup[w] + " "
+    if ans == "":
+        pref = ""
+        if "năm" in question:
+            pref = "năm"
+        elif "tháng" in question:
+            pref = "tháng"
+        elif "ngày" in question:
+            pref = "ngày"
+        for d in words:
+            if d.isnumeric():
+                return pref + " " + d
+    return ans.strip()
+
 def main():
-    processor = BasePostProcessor()
-    text = "ngày 1 tháng 2 năm 2019"
-    print(processor.date_transform(text))
+    text = "năm 1922"
+    question =  "Cộng hòa Liên bang Nga hiện nay được thành lập năm nào"
+    anstype = checktype(text, question)
+    print(anstype)
+    if anstype > 0:
+        if anstype == 3:
+            ans = ""
+        elif anstype == 2:
+            ans = date_transform(text, question)
+            ans = ans.strip()
+        elif anstype == 1:
+            tmpans = ""
+            for d in text.lower().translate(str.maketrans('','',string.punctuation)).split():
+                if d.isnumeric():
+                    tmpans = d
+            ans = tmpans
+            ans = ans.strip()
+    else:
+        print("Erroring")
+    print("checkspace:",ans,"endspace")
+    
 if __name__ == '__main__':
     main()
