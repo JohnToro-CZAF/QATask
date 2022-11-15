@@ -14,35 +14,40 @@ class ListDataset(Dataset):
 
     def __getitem__(self, i):
         return self.original_list[i]
+        
 class BertReader(BaseReader):
-  # class __name__
-  def __init__(self, cfg=None, tokenizer=None, db_path=None) -> None:
-    super().__init__(cfg, tokenizer, db_path)
-    self.cfg = cfg
-    self.pipeline = pipeline('question-answering', model=self.cfg.model_checkpoint, tokenizer=self.cfg.model_checkpoint, device="cuda:0", batch_size=self.cfg.batch_size)
+    # class __name__
+    def __init__(self, cfg=None, tokenizer=None, db_path=None) -> None:
+        super().__init__(cfg, tokenizer, db_path)
+        self.cfg = cfg
+        self.pipeline = pipeline('question-answering', 
+                                 model=self.cfg.model_checkpoint, 
+                                 tokenizer=self.cfg.model_checkpoint, 
+                                 device="cuda:0", 
+                                 batch_size=self.cfg.batch_size)
 
-  def prepare(self, data):
-    """
-    Args:
-      data: A list of {question, contexts:List}
-    Returns:
-      data: A list of {question, context}
-    """
-    res = []
-    for idx, item in enumerate(data):
-      for context in item['contexts']:
-        res.append({'question': item['question'], 'context': context})
-    return res
+    def prepare(self, data):
+        """
+        Args:
+          data: A list of {question, contexts:List}
+        Returns:
+          data: A list of {question, context}
+        """
+        res = []
+        for idx, item in enumerate(data):
+            for context in item['contexts']:
+                res.append({'question': item['question'], 'context': context})
+        return res
 
-  def postprocess(self, prepared, predicted):
-    answer = []
-    QAans = {'question': "",
-             'scores':[], 
-             'starts':[], 
-             'end':[], 
-             'answers':[]}
-    #WorkAORUND
-    prepared.append({'question': 'dummy', 'context': 'dummy'})
+    def postprocess(self, prepared, predicted):
+        answer = []
+        QAans = {'question': "",
+                'scores':[], 
+                'starts':[], 
+                'end':[], 
+                'answers':[]}
+        #WorkAORUND
+        prepared.append({'question': 'dummy', 'context': 'dummy'})
 
     for idx, QA in enumerate(predicted):
       question = prepared[idx]['question']
@@ -171,12 +176,13 @@ class BertReader(BaseReader):
     return saved_format
   
 if __name__ == "__main__":
-  class Config:
-    def __init__(self) -> None:
-      self.model_checkpoint = "nguyenvulebinh/vi-mrc-large"
-      self.batch_size = 8
-  config = Config()
-  reader = BertReader(config, None, "qatask/database/wikipedia_db/wikisqlite.db")
-  data = [{'question': 'Ai là đạo diễn phim Titanic', 'candidate_passages': [(1, None)]},{'question': 'Ai là đạo diễn phim Titanic', 'candidate_passages': [(1, None)]},{'question': 'Ai là đạo diễn phim Titanic', 'candidate_passages': [(1, None)]},{'question': 'Titanic là thuyền gì?', 'candidate_passages': [(1, None)]}, {'question': 'Titanic là thuyền gì?', 'candidate_passages': [(1, None)]}, {'question': 'James Cameron là ai?', 'candidate_passages': [(1, None)]}]
-  answer = reader(data)
-  print(answer)
+    class Config:
+        def __init__(self) -> None:
+            self.model_checkpoint = "nguyenvulebinh/vi-mrc-large"
+            self.batch_size = 8
+    
+    config = Config()
+    reader = BertReader(config, None, "qatask/database/wikipedia_db/wikisqlite.db")
+    data = [{'question': 'Ai là đạo diễn phim Titanic', 'candidate_passages': [(1, None)]},{'question': 'Ai là đạo diễn phim Titanic', 'candidate_passages': [(1, None)]},{'question': 'Ai là đạo diễn phim Titanic', 'candidate_passages': [(1, None)]},{'question': 'Titanic là thuyền gì?', 'candidate_passages': [(1, None)]}, {'question': 'Titanic là thuyền gì?', 'candidate_passages': [(1, None)]}, {'question': 'James Cameron là ai?', 'candidate_passages': [(1, None)]}]
+    answer = reader(data)
+    print(answer)

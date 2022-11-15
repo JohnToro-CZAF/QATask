@@ -46,7 +46,7 @@ If you want to use BM25 post processor which retrieves wikipage as answer given 
 ```
 python3 -m tools.convert_wikipage_sirini --data-path qatask/database/datasets/data_wiki_cleaned/wikipedia_20220620_cleaned.jsonl --output-path qatask/database/datasets/wikipages/wikipages.jsonl 
 ```
-
+```
 python3 -m tools/convert_wikipage_sirini --data-path qatask/database/datasets/data_wiki_cleaned/wikipedia_20220620_cleaned.jsonl \
                                          --output-path qatask/database/datasets/wikipages/wikipages.jsonl 
                                          
