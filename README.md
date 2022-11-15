@@ -72,6 +72,14 @@ Now you can have a Sirini searcher works like a normal retriever (e.g. TFIDF). J
 ```
 python3 main.py --cfg configs/main/colbertv2.yaml --output-path qatask/database/datasets/output/colbertv2_answer.json 
 ```
+
+## Fine-tune reader
+Change the parameters in the `configs/reader/xlm_roberta.yaml` file and run the following:
+```
+python3 tools/finetune_reader/train.py --cfg configs/reader/xlm_roberta.yaml
+```
+When the training completed, change the `reader.model_checkpoint` path in `configs/main/*.yaml` to the saved checkpoint.
+
 ## Main pipeline
 Or you can run TFIDF retriever baseline method which does not require any above command.
 ```
