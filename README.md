@@ -85,6 +85,15 @@ Or you can run TFIDF retriever baseline method which does not require any above 
 ```
 python3 main.py --cfg configs/main/baseline.yaml
 ```
+
+## Evaluate on the train dataset
+By default, run this will calculate the EM of the predicted answers (wikipage, number, date):
+```
+python3 tools/get_accuracy.py --pred  qatask/database/datasets/output/<output_file>.json \
+                              --truth qatask/database/datasets/train_test_files/train_sample.json
+```
+Optional: argument `--answer-acc` is used for calculating the F1 and EM of the short_candidate_answer, thus the `<output_file>.json` must be generated with out `postprocessing`.
+
 ## Customize
 If you want to add new modules. Please, visit qatask/* and inherit classes base.py. For example, 
 ```
