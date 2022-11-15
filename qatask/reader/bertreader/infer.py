@@ -1,15 +1,14 @@
 from .mrc_model import MRCQuestionAnswering
-from transformers import AutoTokenizer, pipeline, RobertaForQuestionAnswering
+from transformers import AutoTokenizer, RobertaForQuestionAnswering
 import torch
-import nltk
-# from nltk import word_tokenize
+from nltk import word_tokenize
 from transformers.models.auto import MODEL_FOR_QUESTION_ANSWERING_MAPPING
 
 
 def tokenize_function(example, tokenizer):
-    question_word = example["question"]
-    context_word = example["context"]
-    print(question_word)
+    question_word = word_tokenize(example["question"])
+    context_word = word_tokenize(example["context"])
+
     question_sub_words_ids = [tokenizer.convert_tokens_to_ids(tokenizer.tokenize(w)) for w in question_word]
     context_sub_words_ids = [tokenizer.convert_tokens_to_ids(tokenizer.tokenize(w)) for w in context_word]
     valid = True
@@ -33,7 +32,7 @@ def tokenize_function(example, tokenizer):
     }
 
 
-def data_collector(samples, tokenizer):
+def data_collator(samples, tokenizer):
     if len(samples) == 0:
         return {}
 
@@ -75,20 +74,17 @@ def extract_answer(inputs, outputs, tokenizer):
     for sample_input, start_logit, end_logit in zip(inputs, outputs.start_logits, outputs.end_logits):
         sample_words_length = sample_input['words_lengths']
         input_ids = sample_input['input_ids']
-        print(torch.argmax(start_logit, dim=-1).cpu().detach().numpy().tolist(), torch.argmax(end_logit, dim=-1).cpu().detach().numpy().tolist())
         # Get the most likely beginning of answer with the argmax of the score
         answer_start = sum(sample_words_length[:torch.argmax(start_logit)])
         # Get the most likely end of answer with the argmax of the score
         answer_end = sum(sample_words_length[:torch.argmax(end_logit) + 1])
-        print(answer_start, answer_end)
+
         if answer_start <= answer_end:
             answer = tokenizer.convert_tokens_to_string(
                 tokenizer.convert_ids_to_tokens(input_ids[answer_start:answer_end]))
             if answer == tokenizer.bos_token:
-                print("cac1")
                 answer = ''
         else:
-            print("cac2")
             answer = ''
 
         score_start = torch.max(torch.softmax(start_logit, dim=-1)).cpu().detach().numpy().tolist()
@@ -99,3 +95,29 @@ def extract_answer(inputs, outputs, tokenizer):
             "score_end": score_end
         })
     return plain_result
+
+
+if __name__ == "__main__":
+    model_checkpoint = "nguyenvulebinh/vi-mrc-base"
+    tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+    model = MRCQuestionAnswering.from_pretrained(model_checkpoint)
+
+    print(model)
+
+    QA_input = {
+        'question': "Bình được công nhận với danh hiệu gì ?",
+        'context': "Bình Nguyễn là một người đam mê với lĩnh vực xử lý ngôn ngữ tự nhiên . Anh nhận chứng chỉ Google Developer Expert năm 2020"
+    }
+    while True:
+        if len(QA_input['question'].strip()) > 0:
+            inputs = [tokenize_function(QA_input)]
+            inputs_ids = data_collator(inputs)
+            outputs = model(**inputs_ids)
+            answer = extract_answer(inputs, outputs, tokenizer)[0]
+            print("answer: {}. Score start: {}, Score end: {}".format(answer['answer'],
+                                                                      answer['score_start'],
+                                                                      answer['score_end']))
+
+        else:
+            QA_input['context'] = input('Context: ')
+        QA_input['question'] = input('Question: ')

@@ -7,16 +7,14 @@ database:
   num_workers: 32
 reader: 
   type: bert_xlm
-  model_checkpoint: nguyenvulebinh/vi-mrc-large
+  model_checkpoint: checkpoint/xlm_roberta/test/checkpoint-3906
   batch_size: 100 # can up to 600 on RTX 3090 
 retriever:
   type: bm25
   top_k: 1
   index_path: checkpoint/indexes/BM25/index
 postprocessor: 
-  type: bm25
-  top_k: 1
-  index_path: checkpoint/indexes/BM25_post/index
+  type: default
 pipeline:
   type: default
 tokenizer:
