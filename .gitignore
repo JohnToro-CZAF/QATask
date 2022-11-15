@@ -25,3 +25,4 @@ qatask/database/datasets/*
 qatask/database/datasets/data_wiki_cleaned/*
 qatask/database/datasets/train_test_files/*
 saved_models/*
+checkpoint/*
