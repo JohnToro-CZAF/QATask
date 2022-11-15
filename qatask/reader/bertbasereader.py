@@ -2,6 +2,8 @@ from transformers import pipeline
 from .base import BaseReader
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
+import string
+import numpy as np
 
 class ListDataset(Dataset):
     def __init__(self, original_list):
@@ -61,11 +63,61 @@ class BertReader(BaseReader):
               'answers':[]}
           
     return answer
+
+  def voting(self, item):
+    # Merge answers that share common words together
+    answers_dict = {}
+    for idx, ans in enumerate(item['answers']):
+      words_ans = ans.translate(str.maketrans('', '', string.punctuation)).split()
+      flagout = 0
+      for answer in answers_dict.keys():
+        flag = 0
+        for w in words_ans:
+          if w in answer:
+            flag = 1
+            break
+        if flag == 1:
+          flagout = 1
+          answers_dict[answer]['count'] += 1
+          answers_dict[answer]['scores'].append(item['scores'][idx])
+          answers_dict[answer]['passage_scores'].append(item['passage_scores'][idx])
+          answers_dict[answer]['candidate_texts'].append(ans)
+          break
+        else:
+          continue
+      if flagout == 0:
+        answers_dict[ans] = {
+          "count" : 1,
+          "scores": [item['scores'][idx]],
+          "passage_scores": [item['passage_scores'][idx]],
+          "candidate_texts": [ans]
+        }
+    res_item = {
+      'question': item['question'],
+      'scores': [],
+      'starts': [],
+      "end": [],
+      'answers': [],
+      "passage_scores" : []
+    }
+    for answer, info in answers_dict.items():
+      rsptext = ""
+      mx = 0
+      for s, ps in zip(info['scores'], info['passage_scores']):
+        if s + ps > mx:
+          rsptext = info['candidate_texts'][info['scores'].index(s)]
+          mx = s + ps
+      res_item['scores'].append(np.sum(info['scores']))
+      res_item['passage_scores'].append(np.sum(info['passage_scores']))
+      res_item['answers'].append(rsptext)
+    return res_item
+
   def getbestans(self, item, mu=0.5):
     """
     Args: item: keys = ['question', 'scores', 'starts', 'end', 'answers', 'passage_scores']
     Returns: best_answer
     """
+    item = self.voting(item)
     return sorted(item['answers'], key=lambda x: mu*item['scores'][item['answers'].index(x)] + (1-mu)*item['passage_scores'][item['answers'].index(x)], reverse=True)[0]
 
   def __call__(self, data):
