@@ -4,6 +4,7 @@ from .tfidf.build_tfidf import *
 import sqlite3
 import os.path as osp
 import os
+import glob
 import math
 
 def process(cur, ranker, query, k=5):
@@ -12,19 +13,34 @@ def process(cur, ranker, query, k=5):
     for doc_id in doc_ids:
         res = cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
         wikipage = res.fetchone()
-        doc_wiki.append(wikipage)
+        doc_wiki.append((doc_id,wikipage))
     return doc_wiki 
+
+# TODO: move this function to retriever utils
+def get_latest_checkpoint(cfg) -> str:
+    dir_name = osp.splitext(osp.basename(cfg.checkpoint))
+    ckpt_names = glob.glob('{}/*.npz'.format(dir_name))
+    ckpt_names = sorted(ckpt_names)
+    checkpoint = None
+    if len(ckpt_names) == 0:
+        logger.info('No checkpoints found in dir_name {}'.format(dir_name))
+    else:
+        checkpoint = ckpt_names[0]
+    return checkpoint
 
 class TFIDFRetriever(BaseRetriever):
     def __init__(self, cfg, tokenizer, db_path) -> None:
         super().__init__()
         self.cfg = cfg
         self.top_k = cfg.top_k
-        filename = self.building_tfidf(tokenizer)
+        if cfg.rebuild:
+            filename = self.building_tfidf(tokenizer)
+        else:
+            filename = get_latest_checkpoint(cfg)
         self.tfidf_ranker = TfidfDocRanker(tfidf_path = filename, tokenizer=tokenizer)
         con = sqlite3.connect(osp.join(os.getcwd(), db_path))
-        self.top_kcur = con.cursor()
-    
+        self.cur = con.cursor()
+
     def building_tfidf(self, tokenizer):
         print("Counting words")
         count_matrix, doc_dict = get_count_matrix(self.cfg, 'sqlite', {'db_path': self.cfg.db_path}, tokenizer)
@@ -32,16 +48,18 @@ class TFIDFRetriever(BaseRetriever):
         freqs = get_doc_freqs(count_matrix)
         basename = osp.splitext(osp.basename(self.cfg.db_path))[0]
         basename += ('-tfidf-ngram=%d-hash=%d-tokenizer=%s' %
-                 (args.ngram, args.hash_size, args.tokenizer))
+                 (self.cfg.ngram, self.cfg.hash_size, 'tokenizer'))
         basename += str(time.time())
-        filename = os.path.join(self.cfg.checkpoint, basename)
+        if not osp.exists(self.cfg.checkpoint):
+            os.mkdir(self.cfg.checkpoint)
+        filename = os.path.join(self.cfg.checkpoint, basename) + ".npz"
         print("Saving to %s" % filename)
         ##Quickfix for tokenizer name
         metadata = {
         'doc_freqs': freqs,
         'tokenizer': 'vnm',
         'hash_size': int(math.pow(2, self.cfg.hash_size)),
-        'ngram': args.ngram,
+        'ngram': self.cfg.ngram,
         'doc_dict': doc_dict,
         }
         data = {
@@ -58,6 +76,6 @@ class TFIDFRetriever(BaseRetriever):
 
     def __call__(self, data):
         for question in data:
-            ans = process(self.cur, self.tfidf_ranker, question['question'], self.top_k)
-            question['answer'] = ans
+            passages_vn = process(self.cur, self.tfidf_ranker, question['question'], self.top_k)
+            question['candidate_passages'] = passages_vn
         return data

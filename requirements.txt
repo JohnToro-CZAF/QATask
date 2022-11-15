@@ -1,3 +1,13 @@
 pyvi
 underthesea
 elasticsearch
+pyserini
+optimum
+omegaconf
+faiss-gpu
+fuzzywuzzy
+
+# libraries for finetuning bert_xlm
+transformers
+datasets
+nltk

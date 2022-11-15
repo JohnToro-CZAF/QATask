@@ -1,0 +1,17 @@
+preprocess:
+  data_path: qatask/database/datasets/train_test_files/train_sample.json
+  mrc_path: qatask/database/datasets/data_for_finetuning/mrc_format_file.jsonl
+datasplit:
+  mrc_path: qatask/database/datasets/data_for_finetuning/mrc_format_file.jsonl
+  train_path: qatask/database/datasets/data_for_finetuning/train.dataset
+  valid_path: qatask/database/datasets/data_for_finetuning/valid.dataset
+  num_proc: 10
+model:
+  checkpoint: nguyenvulebinh/vi-mrc-large
+  cache_dir: checkpoint/xlm_roberta/cache
+  saved_dir: checkpoint/xlm_roberta/test
+  logging_dir: checkpoint/xlm_roberta/log
+  cuda: True
+  epoch_nums: 5
+  batch_size: 4
+  learning_rate: 3e-05

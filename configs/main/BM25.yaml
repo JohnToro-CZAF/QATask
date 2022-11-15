@@ -1,0 +1,19 @@
+database:
+  type: sqlite
+  rebuild: False
+  dataset_path: qatask/database/datasets/data_wiki_cleaned
+  database_path: qatask/database/wikipedia_db/wikisqlite.db # Path to the database file
+  preprocess: qatask/preprocess/wiki_preprocess.py
+  num_workers: 32
+reader: 
+  type: default
+retriever:
+  type: bm25
+  top_k: 5
+  index_path: checkpoint/indexes/BM25/index
+postprocessor: 
+  type: default
+pipeline:
+  type: default
+tokenizer:
+  type: vnm

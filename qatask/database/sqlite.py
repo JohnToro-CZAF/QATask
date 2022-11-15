@@ -11,8 +11,6 @@ import importlib.util
 from multiprocessing import Pool as ProcessPool
 from tqdm import tqdm
 
-from drqa.retriever import utils
-
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 fmt = logging.Formatter('%(asctime)s: [ %(message)s ]', '%m/%d/%Y %I:%M:%S %p')
@@ -108,23 +106,3 @@ class SQLiteDatabase():
         self.data_path = cfg.dataset_path
         self.save_path = cfg.database_path
         store_contents(self.data_path, self.save_path, cfg.preprocess, cfg.num_workers)
-
-# ------------------------------------------------------------------------------
-# Main.
-# ------------------------------------------------------------------------------
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('data_path', type=str, help='../../sample/data_wiki_cleaned')
-    parser.add_argument('save_path', type=str, help='../../SQLDB/wikisqlite.db')
-    parser.add_argument('--preprocess', type=str, default=None,
-                        help=('File path to a python module that defines '
-                              'a `preprocess` function'))
-    parser.add_argument('--num-workers', type=int, default=None,
-                        help='Number of CPU processes (for tokenizing, etc)')
-    args = parser.parse_args()
-    print(args.save_path)
-    store_contents(
-        args.data_path, args.save_path, args.preprocess, args.num_workers
-    )

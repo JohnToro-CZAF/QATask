@@ -1,0 +1,24 @@
+database:
+  type: sqlite
+  rebuild: False
+  dataset_path: qatask/database/datasets/data_wiki_cleaned_sliced
+  database_path: qatask/database/wikipedia_db/wikisqlite_sliced.db # Path to the database file
+  preprocess: qatask/preprocess/dummy.py
+  num_workers: 32
+reader: 
+  type: bert_xlm
+  model_checkpoint: nguyenvulebinh/vi-mrc-large
+  batch_size: 60 #can up to 600 on RTX 3090 
+  logpth: "logs/"
+retriever:
+  type: bm25
+  top_k: 20
+  index_path: checkpoint/indexes/BM25_sliced
+postprocessor: 
+  type: bm25
+  top_k: 15
+  index_path: checkpoint/indexes/BM25_sliced_post
+pipeline:
+  type: default
+tokenizer:
+  type: vnm
