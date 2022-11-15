@@ -24,6 +24,7 @@ qatask/database/wikipedia_faiss/wikipedia_pyserini_format.json
 *.egg
 
 # Data
+logs/*
 outputs/*
 qatask/database/wikipedia_db/*
 qatask/database/datasets/*
@@ -32,3 +33,5 @@ qatask/database/datasets/train_test_files/*
 saved_models/*
 qatask/database/wikipedia_faiss/*
 qatask/database/wikipedia_faiss/wikipedia_pyserini_format.jsonl
+
+.vscode-upload.json

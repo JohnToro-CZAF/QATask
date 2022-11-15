@@ -6,6 +6,7 @@ import sqlite3
 import os.path as osp
 import os
 from tqdm import tqdm
+import ipdb
 
 class ColbertRetriever(BaseRetriever):
     def __init__(self, index_path, top_k, db_path):
@@ -79,11 +80,31 @@ class BM25Retriever(BaseRetriever):
         for question in tqdm(data):
             hits = self.searcher.search(question['question'])
             candidate_passages = []
-            for i in range(0, self.top_k):
+            doc_ids = []
+            scores_bm25 = []
+            i = 0
+            j = 0
+            # self.top_k is a threshold for BM25 searching, BM25 might return less than top_k passages, a heuristic is used to get top matach passages
+            while (j<self.top_k and i<len(hits)):
                 doc_id = hits[i].docid
+                _res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
+                _wikipage = _res.fetchone()
+                
+                if _wikipage is None:
+                    i+=1
+                    continue
+                else:
+                    doc_ids.append(doc_id)
+                    scores_bm25.append(hits[i].score/100)
+                    j += 1
+                    i += 1 
+
+            for doc_id, score in zip(doc_ids, scores_bm25):
                 res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
                 wikipage = res.fetchone()
-                passage_vn = (doc_id, wikipage)
+                if wikipage is None:
+                    res = self.cur.execute("SELECT text FROM documents WHERE id= ?", (str(doc_id), )).fetchone()
+                passage_vn = (doc_id, wikipage, score)
                 candidate_passages.append(passage_vn)
             question['candidate_passages'] = candidate_passages
         print("Retrieved passages.")
