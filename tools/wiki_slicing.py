@@ -1,56 +1,50 @@
 import json
 import argparse
-from qatask.preprocess.wiki_preprocess import preprocess_json
+from tools.wiki_utils import preprocess_slicing
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-path", type=str, required=True)
-    parser.add_argument("--output-path", type=str, required=True)
+    parser.add_argument("--data-path", type=str, default="../qatask/database/datasets/wikipedia.jsonl")
+    parser.add_argument("--output-path", type=str, default="../qatask/database/datasets/wikicorpus/wiki.jsonl")
     return parser.parse_args()
 
 def main():
     args = parse_arguments()
     data_path = args.data_path
     with open(args.output_path, "w") as g:
-        # control = 0
+        # control variable to produce small length sliced corpus, in purpose of examining the results
+        # control = 0 
         with open(data_path) as f:
             id = 0
-            for idx, line in enumerate(f):
+            for line in f:
                 # control += 1
-                # if(control > 30):
+                # if(control > 10):
                 #   break
                 # Parse document
                 doc = json.loads(line)
+                doc['text'] = preprocess_slicing(doc['text'])
                 lstpos = 0
-                cnt = 0
                 for pos, c in enumerate(doc['text']):
-                  if c == "\n":
-                    cnt += 1
-                  if cnt > 10:
-                    cnt = 0
+                  if c == "#":
                     temp = {
                         "id": str(id),
                         "title": doc['title'],
                         "text": doc["text"][lstpos:pos]
                     }
-                    temp = preprocess_json(temp)
-                    if len(temp['text']) > 10:
-                        json.dump(temp, g)
-                        g.write("\n")
-                        id += 1
-                    # print(id)
-                    # print(idx)
+                    json.dump(temp, g, ensure_ascii=False)
+                    g.write("\n")
+                    id += 1
+                    lstpos = pos + 1
+
                 temp = {
                     "id": id,
                     "title": doc['title'],
                     "text": doc["text"][lstpos:]
                 }
-                temp = preprocess_json(temp)
-                if len(temp['text']) > 10:
-                    json.dump(temp, g)
-                    g.write("\n")
+                json.dump(temp, g, ensure_ascii=False)
+                g.write("\n")
                 id += 1
-                print(id)
+                # print(id)
             print("Genrated {} docuements".format(id+1))              
 if __name__ == "__main__":
     main()

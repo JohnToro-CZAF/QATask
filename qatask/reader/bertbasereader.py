@@ -117,13 +117,20 @@ class BertReader(BaseReader):
         res_item['answers'].append(rsptext)
       return res_item
 
-    def getbestans(self, item, mu=0.5):
+    def getbestans(self, item):
       """
       Args: item: keys = ['question', 'scores', 'starts', 'end', 'answers', 'passage_scores']
       Returns: best_answer
       """
+      mu = self.cfg.weighted_mu
       item = self.voting(item)
-      return sorted(item['answers'], key=lambda x: mu*item['scores'][item['answers'].index(x)] + (1-mu)*item['passage_scores'][item['answers'].index(x)], reverse=True)[0]
+      answer = sorted(item['answers'], key=lambda x: mu*item['scores'][item['answers'].index(x)] + (1-mu)*item['passage_scores'][item['answers'].index(x)], reverse=True)[0]
+      ans_score = item['scores'][item['answers'].index(answer)]
+      if ans_score < self.cfg.threshold:
+        return None
+      else:
+        return answer
+  
 
     def __call__(self, data):
       """
@@ -161,7 +168,7 @@ class BertReader(BaseReader):
           # Currently we are selecting answer with max score
           # TODO: Select answer with max score and max score of retrieved passage
           item['passage_scores'] = question_passage_scores[idx]
-          bestans = self.getbestans(item, mu=0.45)
+          bestans = self.getbestans(item)
           saved_format['data'].append({'id':'testa_{}'.format(idx+1),
                                         'question':item['question'],
                                         'answer': bestans})
@@ -169,7 +176,8 @@ class BertReader(BaseReader):
             saved_logs['data'].append({'id':'testa_{}'.format(idx+1),
                                         'question':item['question'],
                                         'answer': item['answers'],
-                                        'scores': [item['scores'], item['passage_scores']]})
+                                        'scores': item['scores'], 'passage_scores': item['passage_scores'], 
+                                        'candidate_retrieving_wikipages': [passage[1] for passage in data[idx]['candidate_passages']]})
       if getattr(self.cfg, 'logpth') is not None:
         self.logging(saved_logs)
       print("reading done")

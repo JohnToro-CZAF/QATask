@@ -98,11 +98,13 @@ class BM25PostProcessor(BasePostProcessor):
     def process(self, data):
         print("Postprocessing...")
         for question in tqdm(data["data"]):
+            if question['answer'] is None:
+                continue
             anstype = self.checktype(question['answer'], question['question'])
             # print(anstype)
             if anstype > 0:
                 if anstype == 3:
-                    question['answer'] = 'null'
+                    question['answer'] = None
                 elif anstype == 2:
                     question['answer'] = self.date_transform(question['answer'], question['question'])
                     question['answer'] = question['answer'].strip()

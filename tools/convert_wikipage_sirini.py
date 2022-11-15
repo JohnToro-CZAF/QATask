@@ -3,8 +3,8 @@ import argparse
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-path", type=str, required=True)
-    parser.add_argument("--output-path", type=str, required=True)
+    parser.add_argument("--data-path", type=str, default="../qatask/database/datasets/wikicorpus/wiki.jsonl")
+    parser.add_argument("--output-path", type=str, required="../qatask/database/datasets/wikipage_post/page_sirini.txt")
     return parser.parse_args()
 
 def main():

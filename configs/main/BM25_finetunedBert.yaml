@@ -1,0 +1,27 @@
+database:
+  type: sqlite
+  rebuild: True
+  dataset_path: qatask/database/datasets/wikicorpus
+  database_path: qatask/database/wikipedia_db/wikisqlite_final1.db # Path to the database file
+  preprocess: qatask/preprocess/dummy.py
+  num_workers: 32
+reader: 
+  type: bert_xlm
+  threshold: 0.0000001
+  weighted_mu: 0.5
+  model_checkpoint: checkpoint/pretrained_model/checkpoint-3906/
+  batch_size: 100 # can up to 600 on RTX 3090 
+  logpth: "logs/"
+retriever:
+  type: bm25
+  top_k: 20
+  index_path: checkpoint/indexes/BM25
+postprocessor: 
+  type: bm25
+  top_k: 15
+  database_path: qatask/database/wikipedia_db/wikisqlite_final1.db # Might have to change to original db wikisqlite.db since the new one seems to produce many duplicated pages
+  index_path: checkpoint/indexes/BM25_post
+pipeline:
+  type: default
+tokenizer:
+  type: vnm

@@ -1,12 +1,10 @@
-from qatask.preprocess.wiki_preprocess import preprocess_json
 import json
 import argparse
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-path", type=str, required=True)
-    parser.add_argument("--output-path", type=str, required=True)
-    parser.add_argument("--need-preprocess", type=bool, default=False)
+    parser.add_argument("--data-path", type=str, default="../qatask/database/datasets/wikicorpus/wiki.jsonl")
+    parser.add_argument("--output-path", type=str, default="../qatask/database/datasets/wikiarticle_retrieve/wiki_sirini.json")
     return parser.parse_args()
 
 def main():
@@ -17,8 +15,6 @@ def main():
             for line in f:
                 # Parse document
                 doc = json.loads(line)
-                if args.need_preprocess:
-                    doc = preprocess_json(doc)
                 temp = {
                     "id": doc['id'],
                     "contents": doc['text'] + " \n"
