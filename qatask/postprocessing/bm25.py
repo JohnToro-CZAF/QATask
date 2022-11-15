@@ -23,10 +23,11 @@ class BM25PostProcessor(BasePostProcessor):
         text = text.lower().translate(str.maketrans('','',string.punctuation))
         words = text.split()
         """Check if the text is a date or a number."""
-        time_indicators = ["năm", "ngày", "tháng", "thời gian", "thời điểm", "lúc nào", "mùng nào"]
+        time_indicators = ["năm nào", "năm mấy", "năm bao nhiêu", "ngày bao nhiêu", "ngày tháng năm nào", "thời điểm nào", "ngày tháng âm lịch nào hằng năm", "thời gian nào", "lúc nào", "giai đoạn nào trong năm"]
+        # time_indicators = ["năm", "ngày", "tháng", "thời gian", "thời điểm", "lúc nào", "mùng nào"]
         if any(idc in question.lower() for idc in time_indicators):
             return 2
-        if "bao nhiêu" in question:
+        if "có bao nhiêu" in question:
             for d in words:
                 if d.isnumeric():
                     return 1
@@ -120,22 +121,15 @@ class BM25PostProcessor(BasePostProcessor):
                 # wikipage = res.fetchone()
                 # TODO: There are many canidate wikipage -> find the one who is 
                 # nearest
-            doc_ids = []
             # print("ok")
             doc_ids = []
             i = 0
             j = 0
-            while (j<self.top_k):
-                try:
-                    doc_id = hits[i].docid
-                    _res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
-                    _wikipage = _res.fetchone()
-                except:
-                    if len(doc_ids) > 0:
-                        doc_ids.append(doc_ids[-1])
-                    else:
-                        doc_ids.append(0)
-                    break
+            while (j<self.top_k and i<len(hits)):
+                doc_id = hits[i].docid
+                _res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
+                _wikipage = _res.fetchone()
+                
                 if _wikipage is None:
                     i+=1
                     continue
@@ -143,6 +137,7 @@ class BM25PostProcessor(BasePostProcessor):
                     doc_ids.append(doc_id)
                     j += 1
                     i += 1
+                     
             wikipages = []
             for doc_id in doc_ids:
                 res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (doc_id, ))

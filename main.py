@@ -27,7 +27,7 @@ class Pipeline:
             self.db = None
         self.reader = build_reader(cfg.reader, self.tokenizer, cfg.database.database_path)
         self.retriever = build_retriever(cfg.retriever, self.tokenizer, cfg.database.database_path)
-        self.postprocessor = build_postprocessor(cfg.postprocessor, cfg.database.database_path)
+        self.postprocessor = build_postprocessor(cfg.postprocessor, cfg.postprocessor.database_path)
         
     def __call__(self, set_questions) -> str:
         results = self.retriever(set_questions)
