@@ -81,34 +81,30 @@ class BM25Retriever(BaseRetriever):
             hits = self.searcher.search(question['question'])
             candidate_passages = []
             doc_ids = []
+            scores_bm25 = []
             i = 0
             j = 0
-            while (j<self.top_k):
-                try:
-                    doc_id = hits[i].docid
-                    _res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
-                    _wikipage = _res.fetchone()
-                except:
-                    if len(doc_ids) > 0:
-                        doc_ids.append(doc_ids[-1])
-                    else:
-                        doc_ids.append(0)
-                    break
+            # self.top_k is a threshold for BM25 searching, BM25 might return less than top_k passages, a heuristic is used to get top matach passages
+            while (j<self.top_k and i<len(hits)):
+                doc_id = hits[i].docid
+                _res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
+                _wikipage = _res.fetchone()
                 
                 if _wikipage is None:
                     i+=1
                     continue
                 else:
                     doc_ids.append(doc_id)
+                    scores_bm25.append(hits[i].score/100)
                     j += 1
-                    i += 1
+                    i += 1 
 
-            for doc_id in doc_ids:
+            for doc_id, score in zip(doc_ids, scores_bm25):
                 res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
                 wikipage = res.fetchone()
                 if wikipage is None:
                     res = self.cur.execute("SELECT text FROM documents WHERE id= ?", (str(doc_id), )).fetchone()
-                passage_vn = (doc_id, wikipage)
+                passage_vn = (doc_id, wikipage, score)
                 candidate_passages.append(passage_vn)
             question['candidate_passages'] = candidate_passages
         print("Retrieved passages.")

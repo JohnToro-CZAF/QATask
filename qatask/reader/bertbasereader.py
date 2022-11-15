@@ -61,7 +61,13 @@ class BertReader(BaseReader):
               'answers':[]}
           
     return answer
-  
+  def getbestans(self, item, mu=0.5):
+    """
+    Args: item: keys = ['question', 'scores', 'starts', 'end', 'answers', 'passage_scores']
+    Returns: best_answer
+    """
+    return sorted(item['answers'], key=lambda x: mu*item['scores'][item['answers'].index(x)] + (1-mu)*item['passage_scores'][item['answers'].index(x)], reverse=True)[0]
+
   def __call__(self, data):
     """
       Args:
@@ -71,19 +77,17 @@ class BertReader(BaseReader):
         [{'question':"Ai là người đứng đầu trong cuộc chống lại chính quyền ]Đông Hán", 'score': [5.1510567573131993e-05], 'start': [65], 'end': [72], 'answers': ['Lê Chân']}, {'scores': [0.7084577679634094], 'starts': [33], 'ends': [57], 'answers': ['Phan Thiết (Bình Thuận)']}]
     """
     _data = []
+    question_passage_scores = []
     print("Reading candidate passages ...")
     for item in data:
       question = item['question']
+      passage_scores = [passage[2] for passage in item['candidate_passages']]
+      question_passage_scores.append(passage_scores)
       candidate_passages = item['candidate_passages']
       contexts = []
-      cnt = 0
-      for doc_id, wikipage in candidate_passages:
+      for doc_id, _, _ in candidate_passages:
           context = self.cur.execute("SELECT text FROM documents WHERE id = ?", (str(doc_id), )).fetchone()
-          # print(doc_id) 
-          if context == None:
-            cnt += 1
-            print(doc_id, wikipage)
-            context = [""]
+          assert context != None
           contexts.append(context[0])
       _data.append({'question': question, 'contexts': contexts})
     prepared = self.prepare(_data)
@@ -97,15 +101,18 @@ class BertReader(BaseReader):
     # ====================== Saving logs ===================
     saved_logs = {'data': []}
     for idx, item in enumerate(answer):
-        max_score = max(item['scores'])
-        bestans = item['answers'][item['scores'].index(max_score)]
+        # Currently we are selecting answer with max score
+        # TODO: Select answer with max score and max score of retrieved passage
+        item['passage_scores'] = question_passage_scores[idx]
+        bestans = self.getbestans(item, mu=0.45)
         saved_format['data'].append({'id':'testa_{}'.format(idx+1),
                                       'question':item['question'],
                                       'answer': bestans})
         if getattr(self.cfg, 'logpth') is not None:
           saved_logs['data'].append({'id':'testa_{}'.format(idx+1),
                                       'question':item['question'],
-                                      'answer': item['answers']})
+                                      'answer': item['answers'],
+                                      'scores': [item['scores'], item['passage_scores']]})
     if getattr(self.cfg, 'logpth') is not None:
       self.logging(saved_logs)
     print("reading done")
