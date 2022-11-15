@@ -122,11 +122,27 @@ class BM25PostProcessor(BasePostProcessor):
                 # nearest
             doc_ids = []
             # print("ok")
-            for i in range(0, self.top_k):
+            doc_ids = []
+            i = 0
+            j = 0
+            while (j<self.top_k):
                 try:
-                    doc_ids.append(hits[i].docid)
+                    doc_id = hits[i].docid
+                    _res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
+                    _wikipage = _res.fetchone()
                 except:
+                    if len(doc_ids) > 0:
+                        doc_ids.append(doc_ids[-1])
+                    else:
+                        doc_ids.append(0)
                     break
+                if _wikipage is None:
+                    i+=1
+                    continue
+                else:
+                    doc_ids.append(doc_id)
+                    j += 1
+                    i += 1
             wikipages = []
             for doc_id in doc_ids:
                 res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (doc_id, ))

@@ -1,5 +1,6 @@
 import json
 import argparse
+from qatask.preprocess.wiki_preprocess import preprocess_json
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -14,7 +15,7 @@ def main():
         # control = 0
         with open(data_path) as f:
             id = 0
-            for line in f:
+            for idx, line in enumerate(f):
                 # control += 1
                 # if(control > 30):
                 #   break
@@ -32,14 +33,24 @@ def main():
                         "title": doc['title'],
                         "text": doc["text"][lstpos:pos]
                     }
+                    temp = preprocess_json(temp)
+                    if len(temp['text']) > 10:
+                        json.dump(temp, g)
+                        g.write("\n")
+                        id += 1
+                    # print(id)
+                    # print(idx)
                 temp = {
                     "id": id,
                     "title": doc['title'],
                     "text": doc["text"][lstpos:]
                 }
-                json.dump(temp, g)
-                g.write("\n")
-                id += 1  
+                temp = preprocess_json(temp)
+                if len(temp['text']) > 10:
+                    json.dump(temp, g)
+                    g.write("\n")
+                id += 1
+                print(id)
             print("Genrated {} docuements".format(id+1))              
 if __name__ == "__main__":
     main()
