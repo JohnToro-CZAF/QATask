@@ -51,10 +51,12 @@ If you want to use BM25 post processor which retrieves wikipage as answer given 
 
 ### Build postprocessor indexes
 ```
-python3 -m tools.convert_wikipage_sirini --data-path qatask/database/datasets/wikicorpus/wiki.jsonl --output-path qatask/database/datasets/wikipage_post/page_sirini.jsonl
+python3 -m tools.convert_wikipage_sirini --data-path qatask/database/datasets/wikipedia.jsonl --output-path qatask/database/datasets/wikipage_post/page_sirini.jsonl
               
 python3 -m tools.generate_sparse --cfg configs/postprocessor/BM25.yaml
 ```
+### Noticing on postprocessor and retriever indexes and databases
+since the databse that retriever and postprocessor used are different, retriever needs a sliced version of original corpus database, in meanwhile postprocessor's database is in need of original since the slicing made a lot of duplicates, leading to decrease in performance of getting the wiki links while the reader's performance is good. Here we only provide one database creating - for the retriever, reader (In configs/main/*.yml) but not for the postprocessor - you have to create one, or may be in the future we will add this into the pipeline.
 
 ### Running inference
 After getting BM25 index, run main pipeline to output with finetuned BERT.
