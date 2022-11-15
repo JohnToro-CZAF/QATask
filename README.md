@@ -42,18 +42,18 @@ Generate BM25 index. First, make `checkpoint/indexes/BM25` folder, then run this
 
 ### Build retriever indexes
 ```
-python3 -m tools.convert_format_sirini --data-path qatask/database/datasets/wikicorpus/wiki.jsonl --output-path qatask/database/datasets/wikiarticle_retrieve/wiki_sirini.json
+python3 -m tools.pysirini.convert_format_sirini --data-path qatask/database/datasets/wikicorpus/wiki.jsonl --output-path qatask/database/datasets/wikiarticle_retrieve/wiki_sirini.json
 
-python3 -m tools.generate_sparse --cfg configs/retriever/BM25.yaml
+python3 -m tools.pysirini.generate_sparse --cfg configs/retriever/BM25.yaml
 ```
 
 If you want to use BM25 post processor which retrieves wikipage as answer given a short candidate (produced by BERT), run this
 
 ### Build postprocessor indexes
 ```
-python3 -m tools.convert_wikipage_sirini --data-path qatask/database/datasets/wikipedia.jsonl --output-path qatask/database/datasets/wikipage_post/page_sirini.jsonl
+python3 -m tools.pysirini.convert_wikipage_sirini --data-path qatask/database/datasets/wikipedia.jsonl --output-path qatask/database/datasets/wikipage_post/page_sirini.jsonl
               
-python3 -m tools.generate_sparse --cfg configs/postprocessor/BM25.yaml
+python3 -m tools.pysirini.generate_sparse --cfg configs/postprocessor/BM25.yaml
 ```
 ### Noticing on postprocessor and retriever indexes and databases
 since the databse that retriever and postprocessor used are different, retriever needs a sliced version of original corpus database, in meanwhile postprocessor's database is in need of original since the slicing made a lot of duplicates, leading to decrease in performance of getting the wiki links while the reader's performance is good. Here we only provide one database creating - for the retriever, reader (In configs/main/*.yml) but not for the postprocessor - you have to create one, or may be in the future we will add this into the pipeline.
@@ -73,7 +73,7 @@ If you want to use Sirini retrievers you need to translate Vietnamese corpus int
 python3 -m torch.distributed.launch -m tools.translate_eng
 
 # Create a FAISS index for your favourite Sirini retriever by configs file 
-python3 tools/generating_dense.py --cfg configs/retriever/colbertv2.yaml 
+python3 -m tools.pysirini.generating_dense.py --cfg configs/retriever/colbertv2.yaml 
 ``` 
 Now you can have a Sirini searcher works like a normal retriever (e.g. TFIDF). Just run `main` with your config `configs/colbertv2.yaml`:
 ```
