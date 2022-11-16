@@ -102,7 +102,7 @@ def store_contents(data_path, save_path, preprocess, num_workers=None):
     conn.close()
 
 class SQLiteDatabase():
-    def __init__(self, cfg):
-        self.data_path = cfg.dataset_path
-        self.save_path = cfg.database_path
+    def __init__(self, cfg, dataset_path, database_path):
+        self.data_path = dataset_path
+        self.save_path = database_path
         store_contents(self.data_path, self.save_path, cfg.preprocess, cfg.num_workers)

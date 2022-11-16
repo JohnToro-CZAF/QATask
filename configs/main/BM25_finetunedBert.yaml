@@ -1,8 +1,10 @@
 database:
   type: sqlite
   rebuild: True
-  dataset_path: qatask/database/datasets/wikicorpus
+  dataset_path: datasets/wikicorpus
   database_path: qatask/database/wikipedia_db/wikisqlite_final1.db # Path to the database file
+  dataset_path_post: datasets/
+  database_path_post: qatask/database/wikipedia_db/wikisqlite.db
   preprocess: qatask/preprocess/dummy.py
   num_workers: 32
 reader: 

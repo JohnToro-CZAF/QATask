@@ -1,23 +1,28 @@
 database:
   type: sqlite
   rebuild: False
-  dataset_path: qatask/database/datasets/data_wiki_cleaned
-  database_path: qatask/database/wikipedia_db/wikisqlite.db # Path to the database file
-  preprocess: qatask/preprocess/wiki_preprocess.py
+  dataset_path: datasets/wikicorpus
+  database_path: qatask/database/wikipedia_db/wikisqlite_final1.db # Path to the database file
+  dataset_path_post: datasets/zalo
+  database_path_post: qatask/database/wikipedia_db/wikisqlite.db
+  preprocess: qatask/preprocess/dummy.py
   num_workers: 32
 reader: 
   type: bert_xlm
+  threshold: 0.00000000000000000001
+  weighted_mu: 0.5
   model_checkpoint: nguyenvulebinh/vi-mrc-large
   batch_size: 50 #can up to 600 on RTX 3090 
   logpth: "logs/"
 retriever:
   type: bm25
   top_k: 10
-  index_path: checkpoint/indexes/BM25/index
+  index_path: checkpoint/indexes/BM25
 postprocessor: 
   type: bm25
-  top_k: 1
-  index_path: checkpoint/indexes/BM25_post/index
+  top_k: 15
+  database_path: qatask/database/wikipedia_db/wikisqlite.db 
+  index_path: checkpoint/indexes/BM25_post
 pipeline:
   type: default
 tokenizer:

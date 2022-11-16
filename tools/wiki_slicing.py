@@ -1,6 +1,8 @@
 import json
 import argparse
 from tools.wiki_utils import preprocess_slicing
+import os
+import os.path as osp
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -11,6 +13,8 @@ def parse_arguments():
 def main():
     args = parse_arguments()
     data_path = args.data_path
+    if not osp.exists("/".join(args.output_path.split("/")[:-1])):
+        os.mkdir("/".join(args.output_path.split("/")[:-1]))
     with open(args.output_path, "w") as g:
         # control variable to produce small length sliced corpus, in purpose of examining the results
         # control = 0 

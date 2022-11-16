@@ -3,7 +3,7 @@ __pycache__/
 *.py[cod]
 */.ipynb_checkpoints/*
 .DS_Store
-
+.vscode-upload.json
 # Distribution / packaging
 bin/
 build/
@@ -18,7 +18,6 @@ var/
 *.egg-info/
 outputs/
 .empty/
-checkpoint/
 qatask/database/wikipedia_faiss/wikipedia_pyserini_format.json
 .installed.cfg
 *.egg
@@ -31,11 +30,7 @@ qatask/database/datasets/*
 qatask/database/datasets/data_wiki_cleaned/*
 qatask/database/datasets/train_test_files/*
 saved_models/*
-<<<<<<< HEAD
 checkpoint/*
-=======
-qatask/database/wikipedia_faiss/*
-qatask/database/wikipedia_faiss/wikipedia_pyserini_format.jsonl
-
-.vscode-upload.json
->>>>>>> main
+datasets/*
+output/*
+notebooks/*

@@ -1,7 +1,7 @@
 database:
   type: sqlite
   rebuild: True
-  dataset_path: qatask/database/datasets/data_wiki_cleaned
+  dataset_path: datasets/data_wiki_cleaned
   database_path: qatask/database/wikipedia_db/wikisqlite.db # Path to the database file
   preprocess: qatask/preprocess/wiki_preprocess.py
   num_workers: 32

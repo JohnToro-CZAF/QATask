@@ -16,7 +16,10 @@ def sparse_generator(cfg):
                             cfg.language, cfg.index_path , cfg.threads), shell=True)
 def main():
     args = parse_arguments()
-    sparse_generator(omegaconf.OmegaConf.load(args.cfg))
+    cfg = omegaconf.OmegaConf.load(args.cfg)
+    path = cfg.index_path
+    os.makedirs(path, exist_ok=True)
+    sparse_generator(cfg)
 
 if __name__ == "__main__":
     main()
