@@ -2,7 +2,7 @@ database:
   type: sqlite
   rebuild: False
   dataset_path: datasets/wikicorpus
-  database_path: qatask/database/wikipedia_db/wikisqlite_final1.db # Path to the database file
+  database_path: qatask/database/wikipedia_db/wikisqlite_final1.db #Path to the database file
   dataset_path_post: datasets/zalo
   database_path_post: qatask/database/wikipedia_db/wikisqlite.db
   preprocess: qatask/preprocess/dummy.py
@@ -16,7 +16,7 @@ reader:
   logpth: "logs/"
 retriever:
   type: bm25
-  top_k: 10
+  top_k: 30
   index_path: checkpoint/indexes/BM25
 postprocessor: 
   type: bm25

@@ -14,6 +14,7 @@ def parse_arguments():
     parser = argparse.ArgumentParser("ZaloAI")
     parser.add_argument("--sample-path", type=str, default="datasets/train_test_files/test_sample.json")
     parser.add_argument("--output-path", type=str, default="datasets/output/test_answer_submission.json")
+    parser.add_argument('--mode', type=str, default="test", choices=['val', 'test'])
     parser.add_argument("--cfg", type=str, required=True)
     args = parser.parse_args()
     return args
@@ -43,7 +44,11 @@ def main() -> None:
     with open(osp.join(os.getcwd(), args.sample_path)) as f:
         file = json.loads(f.read())
     data = file['data']
-
+    if args.mode == "val":
+        data = [item for item in data if item['category'] == 'FULL_ANNOTATION']
+        data = data[:600]
+    elif args.mode == "test":
+        pass
     ##Auto saving as json
     results = zaloai_pipeline(data)
     with open(osp.join(os.getcwd(), args.output_path), 'w') as f2:

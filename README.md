@@ -29,12 +29,12 @@
 - Make an output folder by `mkdir output`
 Download and save ZaloAI's datasets:
 - [wiki articles](https://dl-challenge.zalo.ai/e2e-question-answering/wikipedia_20220620_cleaned.zip) 
-as `datasets/wikipedia.jsonl`
+as `datasets/zalo/wikipedia.jsonl`
 - [Train and test files](https://dl-challenge.zalo.ai/e2e-question-answering/e2eqa-train+public_test-v1.zip) as `datasets/train_test_files/train_sample.json` and `datasets/train_test_files/test_sample.json`
 
 To clean and slice the wiki articles, run:
 ```
-python3 -m tools.wiki_slicing --data-path datasets/wikipedia.jsonl --output-path datasets/wikicorpus/wiki.jsonl
+python3 -m tools.wiki_slicing --data-path datasets/zalo/wikipedia.jsonl --output-path datasets/wikicorpus/wiki.jsonl
 ```
 
 ## BM25
@@ -51,7 +51,7 @@ If you want to use BM25 post processor which retrieves wikipage as answer given 
 
 ### Build postprocessor indexes
 ```
-python3 -m tools.pysirini.convert_wikipage_sirini --data-path datasets/wikipedia.jsonl --output-path datasets/wikipage_post/page_sirini.jsonl
+python3 -m tools.pysirini.convert_wikipage_sirini --data-path datasets/zalo/wikipedia.jsonl --output-path datasets/wikipage_post/page_sirini.jsonl
               
 python3 -m tools.pysirini.generate_sparse --cfg configs/postprocessor/BM25.yaml
 ```

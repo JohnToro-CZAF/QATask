@@ -21,7 +21,7 @@ def main():
                 doc = json.loads(line)
                 temp = {
                     "id": doc['id'],
-                    "contents": doc['text'] + " \n"
+                    "contents": doc['title'] + " \n" + doc['text'] + " \n"
                 }
                 json.dump(temp, g)
                 g.write("\n")

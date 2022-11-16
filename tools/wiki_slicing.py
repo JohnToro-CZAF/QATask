@@ -39,9 +39,8 @@ def main():
                     g.write("\n")
                     id += 1
                     lstpos = pos + 1
-
                 temp = {
-                    "id": id,
+                    "id": str(id),
                     "title": doc['title'],
                     "text": doc["text"][lstpos:]
                 }
