@@ -7,6 +7,7 @@ import os.path as osp
 import os
 from tqdm import tqdm
 import ipdb
+from underthesea import word_tokenize
 
 class ColbertRetriever(BaseRetriever):
     def __init__(self, index_path, top_k, db_path):
@@ -23,7 +24,7 @@ class ColbertRetriever(BaseRetriever):
     def __call__(self, data):
         print("Retrieving passages...")
         for question in tqdm(data):
-            hits = self.searcher.search(self.translate(question['question']))
+            hits = self.searcher.search(word_tokenize(question['question']))
             candidate_passages = []
             for i in range(0, self.top_k):
                 doc_id = hits[i].docid

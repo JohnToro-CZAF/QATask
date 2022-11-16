@@ -24,8 +24,8 @@ console.setFormatter(fmt)
 logger.addHandler(console)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--index-path', type=str, default="checkpoint/indexes/BM25")
-parser.add_argument('--db-path', type=str, default="qatask/database/wikipedia_db/wikisqlite_final1.db")
+parser.add_argument('--index-path', type=str, default="checkpoint/indexes/BM25_post")
+parser.add_argument('--db-path', type=str, default="qatask/database/wikipedia_db/wikisqlite.db")
 args = parser.parse_args()
 
 logger.info('Initializing retriever...')
@@ -35,6 +35,8 @@ ranker.set_language('vn')
 con = sqlite3.connect(osp.join(os.getcwd(), args.db_path))
 cur = con.cursor()
 
+# mode = 'retrieving'
+mode = 'postprocessing'
 # ------------------------------------------------------------------------------
 # Drop in to interactive
 # ------------------------------------------------------------------------------
@@ -70,11 +72,18 @@ def process(query, k=5):
             passage_vn = (doc_id, wikipage, score, text_passage)
             candidate_passages.append(passage_vn)
 
-    table = prettytable.PrettyTable(
-        ['Rank', 'Doc Id', 'Wiki Page', 'Doc Score', 'Content']
-    )
-    for idx, passage in enumerate(candidate_passages):
-        table.add_row([idx + 1, passage[0], passage[1], '%.5g' % passage[2], passage[3]])
+    if mode=='retrieving':
+        table = prettytable.PrettyTable(
+            ['Rank', 'Doc Id', 'Wiki Page', 'Doc Score', 'Content']
+        )
+        for idx, passage in enumerate(candidate_passages):
+            table.add_row([idx + 1, passage[0], passage[1], '%.5g' % passage[2], passage[3]])
+    else:
+        table = prettytable.PrettyTable(
+            ['Rank', 'Doc Id', 'Wiki Page', 'Doc Score']
+        )
+        for idx, passage in enumerate(candidate_passages):
+            table.add_row([idx + 1, passage[0], passage[1], '%.5g' % passage[2]])
     print(table)
 
 
