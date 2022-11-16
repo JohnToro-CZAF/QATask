@@ -2,6 +2,7 @@
 
 import regex as re
 from html.parser import HTMLParser
+from underthesea import word_tokenize, text_normalize
 
 def preprocess(article):
     wikipage = article['title']
@@ -31,4 +32,6 @@ def preprocess_slicing(text):
     text = re.sub(re.compile(r"=|==|===|====|====="), '', text)
     text = re.sub(re.compile(r"BULLET::::-"), '', text)
     text = re.sub(re.compile(r"\n"), ',', text)
+    text = text_normalize(text)
+    text = word_tokenize(text, format="text")
     return text

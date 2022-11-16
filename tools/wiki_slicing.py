@@ -4,8 +4,9 @@ from tools.wiki_utils import preprocess_slicing
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-path", type=str, default="../qatask/database/datasets/wikipedia.jsonl")
-    parser.add_argument("--output-path", type=str, default="../qatask/database/datasets/wikicorpus/wiki.jsonl")
+    parser.add_argument("--data-path", type=str, default="qatask/database/datasets/wikipedia.jsonl")
+    parser.add_argument("--output-path", type=str, default="qatask/database/datasets/wikicorpus/wiki.jsonl")
+    parser.add_argument("--test-mode", type=bool, default=False)
     return parser.parse_args()
 
 def main():
@@ -13,13 +14,14 @@ def main():
     data_path = args.data_path
     with open(args.output_path, "w") as g:
         # control variable to produce small length sliced corpus, in purpose of examining the results
-        # control = 0 
+        control = 0 
         with open(data_path) as f:
             id = 0
             for line in f:
-                # control += 1
-                # if(control > 10):
-                #   break
+                # if args.test_mode:
+                #     control += 1
+                #     if(control > 10):
+                #       break
                 # Parse document
                 doc = json.loads(line)
                 doc['text'] = preprocess_slicing(doc['text'])
