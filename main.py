@@ -12,8 +12,9 @@ import json
 
 def parse_arguments():
     parser = argparse.ArgumentParser("ZaloAI")
-    parser.add_argument("--sample-path", type=str, default="qatask/database/datasets/train_test_files/test_sample.json")
-    parser.add_argument("--output-path", type=str, default="qatask/database/datasets/output/test_answer_submission.json")
+    parser.add_argument("--sample-path", type=str, default="datasets/train_test_files/test_sample.json")
+    parser.add_argument("--output-path", type=str, default="datasets/output/test_answer_submission.json")
+    parser.add_argument('--mode', type=str, default="test", choices=['val', 'test'])
     parser.add_argument("--cfg", type=str, required=True)
     args = parser.parse_args()
     return args
@@ -22,9 +23,9 @@ class Pipeline:
     def __init__(self, cfg) -> None:
         self.tokenizer = build_tokenizer(cfg.tokenizer)
         if cfg.database.rebuild:
-            self.db = build_database(cfg.database)
-        else:
-            self.db = None
+            build_database(cfg.database, cfg.database.dataset_path, cfg.database.database_path)
+            if getattr(cfg.database, "dataset_path_post"):
+                build_database(cfg.database, cfg.database.dataset_path_post, cfg.database.database_path_post)
         self.reader = build_reader(cfg.reader, self.tokenizer, cfg.database.database_path)
         self.retriever = build_retriever(cfg.retriever, self.tokenizer, cfg.database.database_path)
         self.postprocessor = build_postprocessor(cfg.postprocessor, cfg.postprocessor.database_path)
@@ -43,7 +44,11 @@ def main() -> None:
     with open(osp.join(os.getcwd(), args.sample_path)) as f:
         file = json.loads(f.read())
     data = file['data']
-
+    if args.mode == "val":
+        data = [item for item in data if item['category'] == 'FULL_ANNOTATION']
+        data = data[:600]
+    elif args.mode == "test":
+        pass
     ##Auto saving as json
     results = zaloai_pipeline(data)
     with open(osp.join(os.getcwd(), args.output_path), 'w') as f2:

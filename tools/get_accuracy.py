@@ -25,6 +25,8 @@ def get_tokens(s):
     return normalize_answer(s).split()
 
 def compute_em(pred_answer, truth_answer):
+    if pred_answer is None:
+        return int(truth_answer is None)
     return int(normalize_answer(truth_answer) == normalize_answer(pred_answer))
 
 def compute_f1(pred_answer, truth_answer):
@@ -51,9 +53,10 @@ def get_answer_accuracy(preds, truths):
     for pred, truth in zip(preds, truths):
         if truth['category'] == 'PARTIAL_ANNOTATION': continue
         if truth['category'] == 'FULL_ANNOTATION':
-            truth_answer = truth['short_candidate']
+            truth_answer = truth['answer']
         else:
-            truth_answer = ""
+            continue
+            # truth_answer = None
         pred_answer = pred['answer']
         em = em_scores.append(compute_em(pred_answer, truth_answer))
         f1 = f1_scores.append(compute_f1(pred_answer, truth_answer))
@@ -64,10 +67,11 @@ def get_wiki_accuracy(pred, truth) -> float:
     # compare pred and truth and return accuracy
     match = 0
     for idx, question in enumerate(pred):
-        if question == truth[idx]:
-            for candidate in truth[idx]['candidates']:
-                if candidate == question['answer']:
+        if question['question'] == truth[idx]['question']:
+            for candidate in question['candidate_retrieving_wikipages']:
+                if candidate[0] == 'wiki/' + truth[idx]['title'].replace(" ","_"):
                   match += 1
+                  break
     return match/len(pred)
 
 def main(args):
@@ -78,7 +82,7 @@ def main(args):
         pred = json.load(fp)['data']
     with open(args.truth) as fp:
         truth = json.load(fp)['data']
-    
+    truth = [item for item in truth if item['category'] == 'FULL_ANNOTATION'][:600]
     if args.answer_acc:
         accuracy = get_answer_accuracy(pred, truth)
     else:
@@ -87,8 +91,8 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--pred', type=str, required=True, default="qatask/database/datasets/wikipedia.jsonl")
-    parser.add_argument('--truth', type=str, required=True, default="qatask/database/datasets/wikipedia_ans.jsonl")
+    parser.add_argument('--pred', type=str, default="logs/lst.json")
+    parser.add_argument('--truth', type=str, default="datasets/train_test_files/train_sample.json")
     parser.add_argument('--answer-acc', action='store_true')
     args = parser.parse_args()
     main(args)
