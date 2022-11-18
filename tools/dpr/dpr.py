@@ -11,7 +11,7 @@ from haystack.document_stores import InMemoryDocumentStore
 # Train DPR on custom dataset
 def main():
   pwd = os.getcwd()
-  doc_dir = pwd+'/qatask/database/data_dpr/'
+  doc_dir = pwd+'/datasets/data_dpr/'
   train_filename = doc_dir + 'dpr_train.json'
   dev_filename = doc_dir + 'dpr_dev.json'
   test_filename = doc_dir + 'dpr_test.json'

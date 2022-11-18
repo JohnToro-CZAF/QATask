@@ -123,7 +123,6 @@ class BertReader(BaseReader):
       Args: item: keys = ['question', 'scores', 'starts', 'end', 'answers', 'passage_scores']
       Returns: best_answer
       """
-      item = self.dry(item)
       mu = self.cfg.weighted_mu
       item = self.voting(item)
       answer = sorted(item['answers'], key=lambda x: mu*item['scores'][item['answers'].index(x)] + (1-mu)*item['passage_scores'][item['answers'].index(x)], reverse=True)[0]

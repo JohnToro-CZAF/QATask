@@ -117,7 +117,7 @@ if __name__ == "__main__":
       dest="dpr_output_filename",
       help="The name of the DPR JSON formatted output file",
       metavar="DPR_out",
-      default="data_dpr/dpr.json",
+      default="datasets/data_dpr/dpr.json",
   )
   parser.add_argument(
       "--num-hard-negative-ctxs",
