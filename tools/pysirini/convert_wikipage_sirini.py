@@ -19,7 +19,7 @@ def main():
                     "id": doc['id'],
                     "contents": doc['title'] + " \n"
                 }
-                json.dump(temp, g)
+                json.dump(temp, g, ensure_ascii=False)
                 g.write("\n")
 if __name__ == "__main__":
     main()

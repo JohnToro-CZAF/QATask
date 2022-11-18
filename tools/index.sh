@@ -9,4 +9,4 @@ CUDA_VISIBLE_DEVICES=$7 python -m pyserini.encode \
   encoder --encoder $5 \
           --fields text \
           --batch $6 \
-          --fp16
+          --fp16 

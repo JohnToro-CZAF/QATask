@@ -55,7 +55,32 @@ class DPRRetriever(ColbertRetriever):
         self.docdb = DocDB(db_path)
         con = sqlite3.connect(osp.join(os.getcwd(), db_path))
         self.cur = con.cursor()
-    
+    def __call__(self, data):
+        print("Retrieving passages...")
+        for question in tqdm(data):
+            hits = self.searcher.search(question['question'], self.top_k)
+            candidate_passages, doc_ids, scores_bm25 = [], [], []
+
+            doc_ids = [hit.docid for hit in hits]
+            scores_bm25 = [hit.score/100 for hit in hits]
+
+            for doc_id, score in zip(doc_ids, scores_bm25):
+                res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
+                wikipage = res.fetchone()[0]
+                res = self.cur.execute("SELECT text FROM documents WHERE id= ?", (str(doc_id), ))
+                ctx = res.fetchone()[0]
+                passage_vn = (doc_id, wikipage, score, ctx)
+                candidate_passages.append(passage_vn)
+            question['candidate_passages'] = candidate_passages
+        print("Retrieved passages.")
+        return data
+
+class HyrbidRetriver(BaseRetriever):
+    def __init__(self, cfg) -> None:
+        self.sieve = BM25Retriever(cfg.sieve)
+        # self.dryer = 
+        pass
+
 class ANCERetriever(ColbertRetriever):
     def __init__(self, index_path, top_k, db_path):
         self.searcher = FaissSearcher(
@@ -79,33 +104,18 @@ class BM25Retriever(BaseRetriever):
     def __call__(self, data):
         print("Retrieving passages...")
         for question in tqdm(data):
-            hits = self.searcher.search(question['question'])
-            candidate_passages = []
-            doc_ids = []
-            scores_bm25 = []
-            i = 0
-            j = 0
-            # self.top_k is a threshold for BM25 searching, BM25 might return less than top_k passages, a heuristic is used to get top matach passages
-            while (j<self.top_k and i<len(hits)):
-                doc_id = hits[i].docid
-                _res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
-                _wikipage = _res.fetchone()
-                
-                if _wikipage is None:
-                    i+=1
-                    continue
-                else:
-                    doc_ids.append(doc_id)
-                    scores_bm25.append(hits[i].score/100)
-                    j += 1
-                    i += 1 
+            hits = self.searcher.search(question['question'], self.top_k)
+            candidate_passages, doc_ids, scores_bm25 = [], [], []
+
+            doc_ids = [hit.docid for hit in hits]
+            scores_bm25 = [hit.score/100 for hit in hits]
 
             for doc_id, score in zip(doc_ids, scores_bm25):
                 res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
-                wikipage = res.fetchone()
-                if wikipage is None:
-                    res = self.cur.execute("SELECT text FROM documents WHERE id= ?", (str(doc_id), )).fetchone()
-                passage_vn = (doc_id, wikipage, score)
+                wikipage = res.fetchone()[0]
+                res = self.cur.execute("SELECT text FROM documents WHERE id= ?", (str(doc_id), ))
+                ctx = res.fetchone()[0]
+                passage_vn = (doc_id, wikipage, score, ctx)
                 candidate_passages.append(passage_vn)
             question['candidate_passages'] = candidate_passages
         print("Retrieved passages.")

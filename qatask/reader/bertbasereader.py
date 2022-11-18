@@ -4,6 +4,7 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 import string
 import numpy as np
+from underthesea import ner
 
 class ListDataset(Dataset):
     def __init__(self, original_list):
@@ -122,6 +123,7 @@ class BertReader(BaseReader):
       Args: item: keys = ['question', 'scores', 'starts', 'end', 'answers', 'passage_scores']
       Returns: best_answer
       """
+      item = self.dry(item)
       mu = self.cfg.weighted_mu
       item = self.voting(item)
       answer = sorted(item['answers'], key=lambda x: mu*item['scores'][item['answers'].index(x)] + (1-mu)*item['passage_scores'][item['answers'].index(x)], reverse=True)[0]
@@ -147,12 +149,8 @@ class BertReader(BaseReader):
         question = item['question']
         passage_scores = [passage[2] for passage in item['candidate_passages']]
         question_passage_scores.append(passage_scores)
-        candidate_passages = item['candidate_passages']
-        contexts = []
-        for doc_id, _, _ in candidate_passages:
-            context = self.cur.execute("SELECT text FROM documents WHERE id = ?", (str(doc_id), )).fetchone()
-            assert context != None
-            contexts.append(context[0])
+        contexts = [passage[3] for passage in item['candidate_passages']]
+        
         _data.append({'question': question, 'contexts': contexts})
       prepared = self.prepare(_data)
       prepared_dataset = ListDataset(prepared)
@@ -171,13 +169,14 @@ class BertReader(BaseReader):
           bestans = self.getbestans(item)
           saved_format['data'].append({'id':'testa_{}'.format(idx+1),
                                         'question':item['question'],
-                                        'answer': bestans})
+                                        'answer': bestans,
+                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']]})
           if getattr(self.cfg, 'logpth') is not None:
             saved_logs['data'].append({'id':'testa_{}'.format(idx+1),
                                         'question':item['question'],
                                         'answer': item['answers'],
                                         'scores': item['scores'], 'passage_scores': item['passage_scores'], 
-                                        'candidate_retrieving_wikipages': [passage[1] for passage in data[idx]['candidate_passages']]})
+                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']]})
       if getattr(self.cfg, 'logpth') is not None:
         self.logging(saved_logs)
       print("reading done")

@@ -28,14 +28,12 @@ def faiss_generator(cfg, shard_id, gpu_id):
     if name_retriever == "colbertv2":
         name_encoder = 'castorini/tct_colbert-v2-hnp-msmarco'
     elif name_retriever == "dpr":
-        name_encoder = 'facebook/dpr-question_encoder-multiset-base'
+        name_encoder = 'checkpoint/dpr_zalo_v1/passage_encoder'
     elif name_retriever == "ance":
         name_encoder = 'castorini/ance-msmarco-passage'
-
     basename = "checkpoint/indexes"
-    savename = osp.join(basename, name_retriever)
-    subprocess.call("sh tools/index.sh {} {} {} {} {} {} {}".format(cfg.corpus, shard_id, 
-                        cfg.shard_num, savename, name_encoder, cfg.batch_size, gpu_id), shell=True)
+    savename = osp.join(basename, cfg.name_index_folder)
+    subprocess.call("sh tools/index.sh {} {} {} {} {} {} {}".format(cfg.corpus, shard_id, cfg.shard_num, savename, name_encoder, cfg.batch_size, gpu_id), shell=True)
 
 def merge_faiss_shard(cfg):
     subprocess.call("python -m pyserini.index.merge_faiss_indexes --prefix {} --shard-num {}".format(cfg.retriever, cfg.shard_num))
