@@ -29,12 +29,12 @@ First, create a folder named `qatask/database/wikipedia_db` with a `__init__.py`
 
 Download and save ZaloAI's datasets:
 - [wiki articles](https://dl-challenge.zalo.ai/e2e-question-answering/wikipedia_20220620_cleaned.zip) 
-as `qatask/database/datasets/wikipedia.jsonl`
-- [Train and test files](https://dl-challenge.zalo.ai/e2e-question-answering/e2eqa-train+public_test-v1.zip) as `qatask/database/datasets/train_test_files/train_merged_final.json` and `qatask/database/datasets/train_test_files/test_sample.json`
+as `datasets/wikipedia.jsonl`
+- [Train and test files](https://dl-challenge.zalo.ai/e2e-question-answering/e2eqa-train+public_test-v1.zip) as `datasets/train_test_files/train_sample.json` and `datasets/train_test_files/test_sample.json`
 
 To clean and slice the wiki articles, run:
 ```
-python3 -m tools.wiki_slicing --data-path qatask/database/datasets/wikipedia.jsonl --output-path qatask/database/datasets/wikicorpus/wiki.jsonl
+python3 -m tools.wiki_slicing --data-path datasets/wikipedia.jsonl --output-path datasets/wikicorpus/wiki.jsonl
 ```
 
 ## BM25
@@ -42,27 +42,33 @@ Generate BM25 index. First, make `checkpoint/indexes/BM25` folder, then run this
 
 ### Build retriever indexes
 ```
-python3 -m tools.pysirini.convert_format_sirini --data-path qatask/database/datasets/wikicorpus/wiki.jsonl --output-path qatask/database/datasets/wikiarticle_retrieve/wiki_sirini.json
+python3 -m tools.pysirini.convert_format_sirini --data-path datasets/wikicorpus/wiki.jsonl --output-path datasets/wikiarticle_retrieve/wiki_sirini.json
 
 python3 -m tools.pysirini.generate_sparse --cfg configs/retriever/BM25.yaml
 ```
 
 If you want to use BM25 post processor which retrieves wikipage as answer given a short candidate (produced by BERT), run this
 
+### Build database for postprocess
+```
+python -m qatask.database.sqlite --data_path_fn datasets/wikipedia.jsonl --save_path qatask/database/wikipedia_db/wikisqlite_post.db
+```
+
 ### Build postprocessor indexes
 ```
-python3 -m tools.pysirini.convert_wikipage_sirini --data-path qatask/database/datasets/wikipedia.jsonl --output-path qatask/database/datasets/wikipage_post/page_sirini.jsonl
+python3 -m tools.pysirini.convert_wikipage_sirini --data-path datasets/wikipedia.jsonl --output-path datasets/wikipage_post/page_sirini.jsonl
               
 python3 -m tools.pysirini.generate_sparse --cfg configs/postprocessor/BM25.yaml
 ```
-### Noticing on postprocessor and retriever indexes and databases
-since the databse that retriever and postprocessor used are different, retriever needs a sliced version of original corpus database, in meanwhile postprocessor's database is in need of original since the slicing made a lot of duplicates, leading to decrease in performance of getting the wiki links while the reader's performance is good. Here we only provide one database creating - for the retriever, reader (In configs/main/*.yml) but not for the postprocessor - you have to create one, or may be in the future we will add this into the pipeline.
 
 ### Running inference
 After getting BM25 index, run main pipeline to output with finetuned BERT.
 ```
-python3 main.py --cfg configs/main/BM25_finetunedBert.yaml \
-                --output-path qatask/database/datasets/output/bm25_bert.json
+python3 main.py --cfg configs/main/BM25_BERT_train.yaml \
+                --output-path datasets/output/val_bm25_bert.json \
+                --sample-path datasets/train_test_files/train_sample.json \
+                --mode val \
+                --size-infer 2000 \ 
 ```
 
 ## Faiss Retriever
