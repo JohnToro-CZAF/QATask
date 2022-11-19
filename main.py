@@ -12,9 +12,9 @@ import json
 
 def parse_arguments():
     parser = argparse.ArgumentParser("ZaloAI")
-    parser.add_argument("--sample-path", type=str, default="datasets/train_test_files/test_sample.json")
-    parser.add_argument("--output-path", type=str, default="datasets/output/test_answer_submission.json")
-    parser.add_argument('--mode', type=str, default="test", choices=['val', 'test'])
+    parser.add_argument("--sample-path", type=str, default="datasets/train_test_files/train_sample.json")
+    parser.add_argument("--output-path", type=str, default="datasets/output/train.json")
+    parser.add_argument('--mode', type=str, default="val", choices=['val', 'test'])
     parser.add_argument("--cfg", type=str, required=True)
     parser.add_argument("--size-infer", type=int, help="Size of data ton infer from val or test datastes", default=600)
     args = parser.parse_args()
@@ -52,7 +52,10 @@ def main() -> None:
         pass
 
     # Limit the size when inferring
-    data = data[:min(args.size_infer, len(data))]
+    if args.mode == "val":
+        data = data[:min(args.size_infer, len(data))]
+    elif args.mode == "test":
+        pass
 
     # Auto saving as json
     results = zaloai_pipeline(data, args.mode)

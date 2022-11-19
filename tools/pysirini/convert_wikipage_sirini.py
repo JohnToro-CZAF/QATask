@@ -3,8 +3,8 @@ import argparse
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-path", type=str, default="datasets/wikicorpus/wiki.jsonl")
-    parser.add_argument("--output-path", type=str, required="datasets/wikipage_post/page_sirini.txt")
+    parser.add_argument("--data-path", type=str, default="datasets/wikipedia.jsonl")
+    parser.add_argument("--output-path", type=str, default="datasets/wikipage_post/page_sirini.json")
     return parser.parse_args()
 
 def main():

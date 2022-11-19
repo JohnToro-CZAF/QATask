@@ -1,4 +1,4 @@
 language: vn
-corpus: qatask/database/datasets/wikipage_post
+corpus: datasets/wikipage_post
 threads: 32
 index_path: checkpoint/indexes/BM25_post

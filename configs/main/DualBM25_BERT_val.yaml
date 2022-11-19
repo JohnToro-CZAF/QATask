@@ -13,9 +13,12 @@ reader:
   batch_size: 100 # can up to 600 on RTX 3090 
   logpth: "logs/"
 retriever:
-  type: bm25
-  top_k: 15
+  type: dual_bm25
+  top_passage: 13
+  top_title: 3
   index_path: checkpoint/indexes/BM25
+  index_path_title: checkpoint/indexes/BM25_post
+  db_path_title: qatask/database/wikipedia_db/wikisqlite_post.db 
 postprocessor:
   type: bm25
   top_k: 200

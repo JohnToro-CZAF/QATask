@@ -65,7 +65,7 @@ python3 -m tools.pysirini.generate_sparse --cfg configs/postprocessor/BM25.yaml
 After getting BM25 index, run main pipeline to output with finetuned BERT.
 ```
 python3 main.py --cfg configs/main/BM25_BERT_train.yaml \
-                --output-path datasets/output/val_bm25_bert.json \
+                --output-path datasets/output/BM25_BERT_val.json \
                 --sample-path datasets/train_test_files/train_sample.json \
                 --mode val \
                 --size-infer 2000 \ 

@@ -18,7 +18,7 @@ def main():
   query_model = "trituenhantaoio/bert-base-vietnamese-uncased"
   passage_model = "trituenhantaoio/bert-base-vietnamese-uncased"
 
-  save_dir = "checkpoint/dpr_zalo_v1/"
+  save_dir = "checkpoint/dpr_zalo_v3/"
 
   retriever = DensePassageRetriever(document_store=InMemoryDocumentStore(),
                                     query_embedding_model=query_model,
@@ -31,7 +31,7 @@ def main():
       train_filename=train_filename,
       dev_filename=dev_filename,
       test_filename=test_filename,
-      n_epochs=15,
+      n_epochs=2,
       batch_size=32,
       grad_acc_steps=8,
       save_dir=save_dir,

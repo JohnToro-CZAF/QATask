@@ -7,6 +7,7 @@ import sqlite3
 from tqdm import tqdm
 from fuzzywuzzy import process
 import string
+import nltk
 
 class BM25PostProcessor(BasePostProcessor):
     def __init__(self, cfg=None, db_path=None):
@@ -98,9 +99,13 @@ class BM25PostProcessor(BasePostProcessor):
         print("Postprocessing...")
         for question in tqdm(data["data"]):
             if question['answer'] is None:
+                if mode == "test":
+                    question.pop('candidate_wikipages', None)
                 continue
             anstype = self.checktype(question['answer'], question['question'])
             if anstype > 0:
+                if mode == "test":
+                    question.pop('candidate_wikipages', None)
                 if anstype == 3:
                     question['answer'] = None
                 elif anstype == 2:
@@ -114,9 +119,11 @@ class BM25PostProcessor(BasePostProcessor):
                     question['answer'] = tmpans
                     question['answer'] = question['answer'].strip()
                 continue
-            hits = self.searcher.search(question['answer'], self.top_k)
+            print(question['question'], " x ", question['answer'], " x ")
+            hits = self.searcher.search(question['answer'], 5)
             doc_ids = [hit.docid for hit in hits]
-
+            for hit in hits:
+                print(hit.raw)
             wikipages = question['candidate_wikipages']
             for doc_id in doc_ids:
                 res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (doc_id, ))
@@ -124,11 +131,22 @@ class BM25PostProcessor(BasePostProcessor):
                 wikipages.append(wikipage[0])
             choices = [wikipage[5:].replace("_", " ") for wikipage in wikipages]
 
+            query = question['answer']
+            if query.startswith("."):
+                pass
+            else:
+                query = query.translate(str.maketrans('','',string.punctuation))
+                query.strip()
+            if 'tỉnh' in query:
+                query = query.replace('tỉnh', '')
+            # print(query)
+
             try:
-                wikipage = process.extractOne(question['answer'], choices)[0]
+                wikipage = process.extractOne(query, choices)[0]
+                print(wikipage)
                 question['answer'] = 'wiki/' + wikipage.replace(" ", "_")
             except:
-                print("can no retrieve this question wikipage")
+                print("can not retrieve this question wikipage")
             # For the test mode. Validation mode needs
             if mode == "test":
                 question.pop('candidate_wikipages', None)

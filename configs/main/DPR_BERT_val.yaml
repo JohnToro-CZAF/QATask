@@ -14,8 +14,8 @@ reader:
   logpth: "logs/"
 retriever:
   type: dpr
-  top_k: 15
-  index_path: checkpoint/indexes/dpr_zalo_v2
+  top_k: 12
+  index_path: checkpoint/indexes/dpr_zalo_v1
 postprocessor: 
   type: bm25
   top_k: 100

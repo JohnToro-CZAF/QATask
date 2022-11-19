@@ -4,8 +4,6 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 import string
 import numpy as np
-from underthesea import ner
-import re
 
 class ListDataset(Dataset):
     def __init__(self, original_list):
@@ -17,7 +15,7 @@ class ListDataset(Dataset):
     def __getitem__(self, i):
         return self.original_list[i]
         
-class BertReader(BaseReader):
+class EnsembleReader(BaseReader):
     # class __name__
     def __init__(self, cfg=None, tokenizer=None, db_path=None) -> None:
         super().__init__(cfg, tokenizer, db_path)
@@ -27,32 +25,18 @@ class BertReader(BaseReader):
                                  tokenizer=self.cfg.model_checkpoint, 
                                  device="cuda:0", 
                                  batch_size=self.cfg.batch_size)
-    def clean_ctx(self, ctx):
-      pattern = re.compile(r'\(|\)|\[|\]|\"|\'|\{|\}|\?|\!|\,|\;|\_|\=|\+|\*|\/|\%|\$|\#|\@|\^|\&|\~|\`|\|')
-      ctx = pattern.sub('', ctx)
-      ctx = ctx.replace("-", " đến ")
-      ctx = ctx.replace(":", " là ")
-      ctx = ctx.replace("=", " bằng ")
-      return ctx
+
     def prepare(self, data):
         """
         Args:
-          data: A list of {question, contexts:List, passage_scores: List}
+          data: A list of {question, contexts:List}
         Returns:
           data: A list of {question, context}
         """
         res = []
-        for item in data:
-            ctxs = item['contexts']
-            for context in ctxs:
-                res.append({'question': item['question'], 'context': self.clean_ctx(context)})
-            # for i in range(len(ctxs)):
-            #   for j in range(i+1, len(ctxs), 1):
-            #     for k in range(j+1, len(ctxs), 1):
-            #       res.append({'question': item['question'], 'context': ctxs[i] + ". " + ctxs[j] + ". " + ctxs[k]})
-            # Notice that, this is only allowed when len(ctxs) is divisible by 3 (change in main config)
-            for i in range(0, len(ctxs), 2):
-              res.append({'question': item['question'], 'context': ctxs[i] + ". " + ctxs[i+1]})
+        for idx, item in enumerate(data):
+            for context in item['contexts']:
+                res.append({'question': item['question'], 'context': context})
         return res
 
     def postprocess(self, prepared, predicted):
@@ -62,9 +46,7 @@ class BertReader(BaseReader):
               'starts':[], 
               'end':[], 
               'answers':[]}
-      #WorkAORUND
       prepared.append({'question': 'dummy', 'context': 'dummy'})
-
       for idx, QA in enumerate(predicted):
         question = prepared[idx]['question']
         QAans['question'] = question
@@ -131,7 +113,6 @@ class BertReader(BaseReader):
         res_item['scores'].append(np.sum(info['scores']))
         res_item['passage_scores'].append(np.sum(info['passage_scores']))
         res_item['answers'].append(rsptext)
-      print(res_item)
       return res_item
 
     def getbestans(self, item):
@@ -158,50 +139,45 @@ class BertReader(BaseReader):
           [{'question':"Ai là người đứng đầu trong cuộc chống lại chính quyền ]Đông Hán", 'score': [5.1510567573131993e-05], 'start': [65], 'end': [72], 'answers': ['Lê Chân']}, {'scores': [0.7084577679634094], 'starts': [33], 'ends': [57], 'answers': ['Phan Thiết (Bình Thuận)']}]
       """
       _data = []
-      data_passage_scores = []
+      question_passage_scores = []
       print("Reading candidate passages ...")
+
+      # Converting retrievied passages to a suitable format for readers
       for item in data:
         question = item['question']
         passage_scores = [passage[2] for passage in item['candidate_passages']]
+        question_passage_scores.append(passage_scores)
         contexts = [passage[3] for passage in item['candidate_passages']]
-
-        augmented_passage_scores = passage_scores.copy()
-
-        # for i in range(len(contexts)):
-        #   for j in range(i+1, len(contexts), 1):
-        #     for k in range(j+1, len(contexts), 1):
-        #       augmented_passage_scores.append((passage_scores[i] + passage_scores[j] + passage_scores[k])/3)
-        for i in range(0, len(contexts), 2):
-          augmented_passage_scores.append((passage_scores[i] + passage_scores[i+1])/2)
-
-        data_passage_scores.append(augmented_passage_scores)
         _data.append({'question': question, 'contexts': contexts})
-
       prepared = self.prepare(_data)
       prepared_dataset = ListDataset(prepared)
+
+      # Predicting part
       predicted = []
       for batch in tqdm(DataLoader(prepared_dataset, batch_size=self.cfg.batch_size)):
         predicted_batch = self.pipeline(batch)
         predicted.extend(predicted_batch)
+      
+      # Logging the result and passing it to the next step
       answer = self.postprocess(prepared, predicted)
-      saved_format = {'data': []}
-      # ====================== Saving logs ===================
-      saved_logs = {'data': []}
+      saved_logs, saved_format = {'data': []}, {'data': []}
       for idx, item in enumerate(answer):
-          # Currently we are selecting answer with max score
-          # TODO: Select answer with max score and max score of retrieved passage
-          item['passage_scores'] = data_passage_scores[idx]
+          item['passage_scores'] = question_passage_scores[idx]
           bestans = self.getbestans(item)
-          saved_format['data'].append({'id':'testa_{}'.format(idx+1),
-                                        'question':item['question'],
-                                        'answer': bestans,
-                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']]})
+          saved_format['data'].append({
+            'id':'testa_{}'.format(idx+1),
+            'question':item['question'],
+            'answer': bestans,
+            'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']]})
+
           if getattr(self.cfg, 'logpth') is not None:
-            saved_logs['data'].append({'id':'testa_{}'.format(idx+1),
-                                        'question':item['question'],
-                                        'answer': item['answers'],
-                                        'scores': item['scores'], 'passage_scores': item['passage_scores'], 
-                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']]})
+            saved_logs['data'].append({
+              'id':'testa_{}'.format(idx+1),
+              'question':item['question'],
+              'answer': item['answers'],
+              'scores': item['scores'], 'passage_scores': item['passage_scores'], 
+              'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']]})
+
       if getattr(self.cfg, 'logpth') is not None:
         self.logging(saved_logs)
       print("reading done")
@@ -214,7 +190,7 @@ if __name__ == "__main__":
             self.batch_size = 8
     
     config = Config()
-    reader = BertReader(config, None, "qatask/database/wikipedia_db/wikisqlite.db")
+    reader = EnsembleReader(config, None, "qatask/database/wikipedia_db/wikisqlite.db")
     data = [{'question': 'Ai là đạo diễn phim Titanic', 'candidate_passages': [(1, None)]},{'question': 'Ai là đạo diễn phim Titanic', 'candidate_passages': [(1, None)]},{'question': 'Ai là đạo diễn phim Titanic', 'candidate_passages': [(1, None)]},{'question': 'Titanic là thuyền gì?', 'candidate_passages': [(1, None)]}, {'question': 'Titanic là thuyền gì?', 'candidate_passages': [(1, None)]}, {'question': 'James Cameron là ai?', 'candidate_passages': [(1, None)]}]
     answer = reader(data)
     print(answer)

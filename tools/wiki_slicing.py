@@ -23,6 +23,8 @@ def main():
                 #     break
                 # Parse document
                 doc = json.loads(line)
+                if "định hướng" in doc['title']:
+                    continue
                 doc['text'] = preprocess_slicing(doc['text'])
                 lstpos = 0
                 cnt = 0
