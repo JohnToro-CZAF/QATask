@@ -26,7 +26,7 @@ def main():
         doc = json.loads(line)
         if doc['title'] == "Trang Chính" or "(định hướng)" in doc['title']: continue
         text = preprocess_slicing(doc['text'])
-        passages = [t.strip() for t in text.split("#")][1:]   # exclude the first `single-title-pararaph`
+        passages = [t.strip() for t in text.split("<endl>")][1:]   # exclude the first `single-title-pararaph`
         for passage in passages:
             dict_data_squad.append({
                 "id": str(id),
