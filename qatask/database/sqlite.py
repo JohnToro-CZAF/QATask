@@ -106,3 +106,39 @@ class SQLiteDatabase():
         self.data_path = cfg.dataset_path
         self.save_path = cfg.database_path
         store_contents(self.data_path, self.save_path, cfg.preprocess, cfg.num_workers)
+
+def store_single_file(data_path_fn, save_path, preprocess, num_workers=None):
+    if os.path.isfile(save_path):
+        raise RuntimeError('%s already exists! Not overwriting.' % save_path)
+
+    logger.info('Reading into database...')
+    print(save_path)
+    conn = sqlite3.connect(save_path)
+    c = conn.cursor()
+    c.execute("CREATE TABLE documents (id PRIMARY KEY, text, wikipage);")
+
+    workers = ProcessPool(num_workers, initializer=init, initargs=(preprocess,))
+    files = [data_path_fn]
+    count = 0
+    with tqdm(total=len(files)) as pbar:
+        for triple in tqdm(workers.imap_unordered(get_contents, files)):
+            count += len(triple)
+            c.executemany("INSERT INTO documents VALUES (?,?,?)", triple)
+            pbar.update()
+    logger.info('Read %d docs.' % count)
+    logger.info('Committing...')
+    conn.commit()
+    conn.close()
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--data_path_fn', type=str, default='datasets/wikipedia.jsonl')
+    parser.add_argument('--save_path', type=str, default='qatask/database/wikipedia_db/wikisqlite_post.db')
+    parser.add_argument('--preprocess', type=str, default='qatask/preprocess/dummy.py')
+    parser.add_argument('--num-workers', type=int, default=1)
+
+    args = parser.parse_args()
+    store_single_file(args.data_path_fn, args.save_path, args.preprocess, args.num_workers)
+
+if __name__ == '__main__':
+    main()

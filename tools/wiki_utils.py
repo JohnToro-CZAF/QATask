@@ -26,12 +26,16 @@ def pre_process(sentence):
     text = text.replace('/^\s+|\s+$|\s+(?=\s)/g', ' ')
     print(text)
 
-def preprocess_slicing(text):
-    text = re.sub(re.compile("\n\n"), "#", text)
-    text = re.sub(re.compile(r"=\n|==\n|===\n|====\n|=====\n"), ',', text)
-    text = re.sub(re.compile(r"=|==|===|====|====="), '', text)
-    text = re.sub(re.compile(r"BULLET::::-"), '', text)
-    text = re.sub(re.compile(r"\n"), ',', text)
-    text = text_normalize(text)
-    text = word_tokenize(text, format="text")
+def preprocess_slicing(raw_text):
+    text = re.sub(re.compile(r"\n\nBULLET::::-|\n\nBULLET::::|:\nBULLET::::-|:\n\nBULLET::::-|:\ ====\nBULLET::::-"), ": ", raw_text)
+    text = re.sub(re.compile(r"\.\xa0\n\n-"), "; ", text)
+    text = re.sub(re.compile(r"\n\n-|:\n\n-|:\n\n"), ": ", text)
+    text = re.sub(re.compile(r"\n\n"), "#", text)
+    text = re.sub(re.compile(r"\. =\nBULLET::::-|\. ==\nBULLET::::-|\. ===\nBULLET::::-|\. ====\nBULLET::::-|\. =====\nBULLET::::-"), ": ", text)
+    text = re.sub(re.compile(r"\. =\nBULLET::::|\. ==\nBULLET::::|\. ===\nBULLET::::|\. ====\nBULLET::::|\. =====\nBULLET::::"), ": ", text)
+    text = re.sub(re.compile(r"\. =\n|\. ==\n|\. ===\n|\. ====\n|\. =====\n"), ": ", text)
+    text = re.sub(re.compile(r"=|==|===|====|====="), "", text)
+    text = re.sub(re.compile(r"\.\nBULLET::::-|\nBULLET::::-"), "; ", text)
+    text = re.sub(re.compile(r"BULLET::::-|BULLET::::"), "", text)
+    text = re.sub(re.compile(r"\n"), "; ", text)
     return text
