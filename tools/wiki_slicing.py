@@ -24,10 +24,9 @@ def main():
         if args.debug_mode:
             if step+1 == 10: break
         doc = json.loads(line)
-        if doc['title'] == "Trang Chính": continue
+        if doc['title'] == "Trang Chính" or "(định hướng)" in doc['title']: continue
         text = preprocess_slicing(doc['text'])
-        passages = [t.strip() for t in text.split("#")][1:] # exclude the first `single-title-pararaph`
-        passages = [word_tokenize(text_normalize(p), format="text") for p in passages]
+        passages = [t.strip() for t in text.split("#")][1:]   # exclude the first `single-title-pararaph`
         for passage in passages:
             dict_data_squad.append({
                 "id": str(id),

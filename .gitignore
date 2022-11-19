@@ -27,6 +27,7 @@ qatask/database/wikipedia_faiss/wikipedia_pyserini_format.json
 logs/*
 outputs/*
 qatask/database/wikipedia_db/*
+datasets/*
 qatask/database/datasets/*
 qatask/database/datasets/data_wiki_cleaned/*
 qatask/database/datasets/train_test_files/*
