@@ -1,0 +1,5 @@
+shard_num: 1
+retriever: dpr
+batch_size: 32
+corpus: "qatask/database/datasets/wikiarticle_retrieve/wiki_sirini.json"
+name_index_folder: "dpr_zalo_v1"

@@ -4,8 +4,8 @@ from tqdm import tqdm
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-path", type=str, default="../qatask/database/datasets/wikicorpus/wiki.jsonl")
-    parser.add_argument("--output-path", type=str, default="../qatask/database/datasets/wikiarticle_retrieve/wiki_sirini.json")
+    parser.add_argument("--data-path", type=str, default="datasets/wikicorpus/wiki.jsonl")
+    parser.add_argument("--output-path", type=str, default="datasets/wikiarticle_retrieve/wiki_sirini.json")
     return parser.parse_args()
 
 def main():
@@ -20,7 +20,7 @@ def main():
                     "id": doc['id'],
                     "contents": doc['text'] + " \n"
                 }
-                json.dump(temp, g)
+                json.dump(temp, g, ensure_ascii=False)
                 g.write("\n")
 
 if __name__ == "__main__":

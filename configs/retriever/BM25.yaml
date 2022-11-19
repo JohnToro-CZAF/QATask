@@ -1,4 +1,4 @@
 language: vn
-corpus: qatask/database/datasets/wikiarticle_retrieve
+corpus: datasets/wikiarticle_retrieve
 threads: 32
 index_path: checkpoint/indexes/BM25

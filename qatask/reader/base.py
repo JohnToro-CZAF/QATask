@@ -14,7 +14,7 @@ class BaseReader:
         self.cur = con.cursor()
     
     def logging(self, data) -> None:
-        with open(self.cfg.logpth + "_" + str(time.time()), 'w') as f:
+        with open(self.cfg.logpth + "_" + str(time.time()) + '.json', 'w') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
     def __call__(self, data):
         return data

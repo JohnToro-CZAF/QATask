@@ -25,7 +25,7 @@ logger.addHandler(console)
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--index-path', type=str, default="checkpoint/indexes/BM25_post")
-parser.add_argument('--db-path', type=str, default="qatask/database/wikipedia_db/wikisqlite.db")
+parser.add_argument('--db-path', type=str, default="qatask/database/wikipedia_db/wikisqlite_post.db")
 args = parser.parse_args()
 
 logger.info('Initializing retriever...')

@@ -7,6 +7,7 @@ import sqlite3
 from tqdm import tqdm
 from fuzzywuzzy import process
 import string
+import nltk
 
 class BM25PostProcessor(BasePostProcessor):
     def __init__(self, cfg=None, db_path=None):
@@ -24,7 +25,6 @@ class BM25PostProcessor(BasePostProcessor):
         words = text.split()
         """Check if the text is a date or a number."""
         time_indicators = ["năm nào", "năm mấy", "năm bao nhiêu", "ngày bao nhiêu", "ngày tháng năm nào", "thời điểm nào", "ngày tháng âm lịch nào hằng năm", "thời gian nào", "lúc nào", "giai đoạn nào trong năm"]
-        # time_indicators = ["năm", "ngày", "tháng", "thời gian", "thời điểm", "lúc nào", "mùng nào"]
         if any(idc in question.lower() for idc in time_indicators):
             return 2
         if "có bao nhiêu" in question:
@@ -95,14 +95,17 @@ class BM25PostProcessor(BasePostProcessor):
                     ans += 'mùng' + ' ' + lookup["mùng"] + " "
         return ans.strip()
 
-    def process(self, data):
+    def process(self, data, mode):
         print("Postprocessing...")
         for question in tqdm(data["data"]):
             if question['answer'] is None:
+                if mode == "test":
+                    question.pop('candidate_wikipages', None)
                 continue
             anstype = self.checktype(question['answer'], question['question'])
-            # print(anstype)
             if anstype > 0:
+                if mode == "test":
+                    question.pop('candidate_wikipages', None)
                 if anstype == 3:
                     question['answer'] = None
                 elif anstype == 2:
@@ -116,48 +119,42 @@ class BM25PostProcessor(BasePostProcessor):
                     question['answer'] = tmpans
                     question['answer'] = question['answer'].strip()
                 continue
-            hits = self.searcher.search(question['answer'])
-            # try:
-                # doc_id = hits[0].docid
-                # res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
-                # wikipage = res.fetchone()
-                # TODO: There are many canidate wikipage -> find the one who is 
-                # nearest
-            # print("ok")
-            doc_ids = []
-            i = 0
-            j = 0
-            while (j<self.top_k and i<len(hits)):
-                doc_id = hits[i].docid
-                _res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (str(doc_id), ))
-                _wikipage = _res.fetchone()
-                
-                if _wikipage is None:
-                    i+=1
-                    continue
-                else:
-                    doc_ids.append(doc_id)
-                    j += 1
-                    i += 1
-                     
-            wikipages = []
+            print(question['question'], " x ", question['answer'], " x ")
+            hits = self.searcher.search(question['answer'], 5)
+            doc_ids = [hit.docid for hit in hits]
+            for hit in hits:
+                print(hit.raw)
+            wikipages = question['candidate_wikipages']
             for doc_id in doc_ids:
                 res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (doc_id, ))
                 wikipage = res.fetchone()
                 wikipages.append(wikipage[0])
-            # print(wikipages)
             choices = [wikipage[5:].replace("_", " ") for wikipage in wikipages]
+
+            query = question['answer']
+            if query.startswith("."):
+                pass
+            else:
+                query = query.translate(str.maketrans('','',string.punctuation))
+                query.strip()
+            if 'tỉnh' in query:
+                query = query.replace('tỉnh', '')
+            # print(query)
+
             try:
-                # print("here", wikipage, process.extractOne(question['answer'], choices))
-                wikipage = process.extractOne(question['answer'], choices)[0]
+                wikipage = process.extractOne(query, choices)[0]
+                print(wikipage)
                 question['answer'] = 'wiki/' + wikipage.replace(" ", "_")
             except:
-                print("can no retrieve this question wikipage")
-             
+                print("can not retrieve this question wikipage")
+            # For the test mode. Validation mode needs
+            if mode == "test":
+                question.pop('candidate_wikipages', None)
+
         return data
 
-    def __call__(self, data):
-        return self.process(data)
+    def __call__(self, data, mode):
+        return self.process(data, mode)
 
 def checktype(text, question):
     text = text.lower().translate(str.maketrans('','',string.punctuation))
