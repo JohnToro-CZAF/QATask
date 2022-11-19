@@ -30,7 +30,7 @@ def preprocess_slicing(raw_text):
     text = re.sub(re.compile(r"\n\nBULLET::::-|\n\nBULLET::::|:\nBULLET::::-|:\n\nBULLET::::-|:\ ====\nBULLET::::-"), ": ", raw_text)
     text = re.sub(re.compile(r"\.\xa0\n\n-"), "; ", text)
     text = re.sub(re.compile(r"\n\n-|:\n\n-|:\n\n"), ": ", text)
-    text = re.sub(re.compile(r"\n\n"), "#", text)
+    text = re.sub(re.compile(r"\n\n"), "<endl>", text)
     text = re.sub(re.compile(r"\. =\nBULLET::::-|\. ==\nBULLET::::-|\. ===\nBULLET::::-|\. ====\nBULLET::::-|\. =====\nBULLET::::-"), ": ", text)
     text = re.sub(re.compile(r"\. =\nBULLET::::|\. ==\nBULLET::::|\. ===\nBULLET::::|\. ====\nBULLET::::|\. =====\nBULLET::::"), ": ", text)
     text = re.sub(re.compile(r"\. =\n|\. ==\n|\. ===\n|\. ====\n|\. =====\n"), ": ", text)
