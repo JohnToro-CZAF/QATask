@@ -19,6 +19,10 @@ def format_sample(sample):
 
 
 def data_split(cfg):
+    if not debug_mode and os.path.isfile(cfg.train_path):
+        print('%s already exists! Not overwriting.' % cfg.train_path)
+        return
+    
     train_set = []
     valid_set = []
     mrc_path = cfg.mrc_path
@@ -44,11 +48,10 @@ def data_split(cfg):
 
 if __name__ == "__main__":
     # debugging purpose
-    class Config:
-        def __init__(self) -> None:
-            self.mrc_path = os.path.join(os.getcwd(), 'qatask/database/datasets/data_for_finetuning/mrc_format_file.jsonl')
-            self.train_path = os.path.join(os.getcwd(), 'qatask/database/datasets/data_for_finetuning/train.dataset')
-            self.valid_path = os.path.join(os.getcwd(), 'qatask/database/datasets/data_for_finetuning/valid.dataset')
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--mrc-path", type=str, default='datasets/data_for_finetuning/mrc_format_file.jsonl')
+    parser.add_argument("--train-path", type=str, default='datasets/data_for_finetuning/train.dataset')
+    parser.add_argument("--valid-path", type=str, default='datasets/data_for_finetuning/valid.dataset')
+    args = parser.parse_args()
     
-    config = Config()
-    data_split(config)
+    data_split(args)

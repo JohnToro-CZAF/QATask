@@ -1,14 +1,14 @@
 preprocess:
-  data_path: qatask/database/datasets/train_test_files/train_sample.json
-  mrc_path: qatask/database/datasets/data_for_finetuning/mrc_format_file_addBM25.jsonl
+  data_path: datasets/train_test_files/train_sample.json
+  mrc_path: datasets/data_for_finetuning/mrc_format_file_addBM25.jsonl
   use_bm25: True
   db_path: qatask/database/wikipedia_db/wikisqlite.db
   index_path: checkpoint/indexes/BM25
   top_k: 4
 datasplit:
-  mrc_path: qatask/database/datasets/data_for_finetuning/mrc_format_file_addBM25.jsonl
-  train_path: qatask/database/datasets/data_for_finetuning/train_addBM25.dataset
-  valid_path: qatask/database/datasets/data_for_finetuning/valid_addBM25.dataset
+  mrc_path: datasets/data_for_finetuning/mrc_format_file_addBM25.jsonl
+  train_path: datasets/data_for_finetuning/train_addBM25.dataset
+  valid_path: datasets/data_for_finetuning/valid_addBM25.dataset
   num_proc: 10
 model:
   checkpoint: nguyenvulebinh/vi-mrc-large

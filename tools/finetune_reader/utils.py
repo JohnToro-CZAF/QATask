@@ -1,4 +1,5 @@
 import datasets
+import argparse
 from transformers import AutoTokenizer
 from torch.utils.data import DataLoader
 import torch
@@ -148,19 +149,16 @@ def prepare_data(cfg):
 
 if __name__ == "__main__":
     # debugging prepare_data
-    class Config:
-        def __init__(self) -> None:
-            self.train_path = os.path.join(os.getcwd(), 'qatask/database/datasets/data_for_finetuning/train.dataset')
-            self.valid_path = os.path.join(os.getcwd(), 'qatask/database/datasets/data_for_finetuning/valid.dataset')
-            self.num_proc   = 10
-
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--train-path", type=str, default='datasets/data_for_finetuning/train_addBM25.dataset')
+    parser.add_argument("--valid-path", type=str, default='datasets/data_for_finetuning/valid_addBM25.dataset')
+    parser.add_argument("--num-proc", type=int, default=10)
+    args = parser.parse_args()
+    
     tokenizer = AutoTokenizer.from_pretrained("nguyenvulebinh/vi-mrc-large")
-    train_dataset, valid_dataset = prepare_data(
-        train_path=os.path.join(os.getcwd(), 'qatask/database/datasets/data_for_finetuning/train.dataset'),
-        valid_path=os.path.join(os.getcwd(), 'qatask/database/datasets/data_for_finetuning/valid.dataset'),
-    )
-    from tqdm import tqdm
+    train_dataset, valid_dataset = prepare_data(args)
 
+    from tqdm import tqdm
     for batch in tqdm(train_dataset):
         print("="*80)
         print(f"batch['context'] = {batch['context']}")
