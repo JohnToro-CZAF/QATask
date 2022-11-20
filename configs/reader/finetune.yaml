@@ -1,6 +1,10 @@
 preprocess:
   data_path: datasets/train_test_files/train_sample.json
   mrc_path: datasets/data_for_finetuning/mrc_format_file.jsonl
+  use_bm25: False
+  db_path: qatask/database/wikipedia_db/wikisqlite.db
+  index_path: checkpoint/indexes/BM25
+  top_k: 4
 datasplit:
   mrc_path: datasets/data_for_finetuning/mrc_format_file.jsonl
   train_path: datasets/data_for_finetuning/train.dataset
@@ -9,9 +13,9 @@ datasplit:
 model:
   checkpoint: nguyenvulebinh/vi-mrc-large
   cache_dir: checkpoint/xlm_roberta/cache
-  saved_dir: checkpoint/xlm_roberta/test
-  logging_dir: checkpoint/xlm_roberta/log
+  saved_dir: checkpoint/xlm_roberta/test/full_annotation_only
+  logging_dir: checkpoint/xlm_roberta/log/full_annotation_only
   cuda: True
-  epoch_nums: 5
+  epoch_nums: 3
   batch_size: 4
   learning_rate: 3e-05

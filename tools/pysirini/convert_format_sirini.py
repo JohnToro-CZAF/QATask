@@ -1,5 +1,6 @@
 import json
 import argparse
+from tqdm import tqdm
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -12,8 +13,8 @@ def main():
     data_path = args.data_path
     with open(args.output_path, "w") as g:
         with open(data_path) as f:
-            for line in f:
-                # Parse document
+            lines = f.readlines()
+            for step, line in tqdm(enumerate(lines), total=len(lines)):
                 doc = json.loads(line)
                 temp = {
                     "id": doc['id'],
@@ -21,5 +22,6 @@ def main():
                 }
                 json.dump(temp, g, ensure_ascii=False)
                 g.write("\n")
+
 if __name__ == "__main__":
     main()

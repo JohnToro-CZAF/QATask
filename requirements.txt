@@ -6,6 +6,7 @@ optimum
 omegaconf
 faiss-gpu
 fuzzywuzzy
+ipdb
 
 # libraries for finetuning bert_xlm
 transformers

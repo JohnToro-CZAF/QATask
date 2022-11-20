@@ -27,15 +27,13 @@ qatask/database/wikipedia_faiss/wikipedia_pyserini_format.json
 logs/*
 outputs/*
 qatask/database/wikipedia_db/*
+datasets/*
 qatask/database/datasets/*
 qatask/database/datasets/data_wiki_cleaned/*
 qatask/database/datasets/train_test_files/*
 saved_models/*
-<<<<<<< HEAD
-checkpoint/*
-=======
 qatask/database/wikipedia_faiss/*
 qatask/database/wikipedia_faiss/wikipedia_pyserini_format.jsonl
-
 .vscode-upload.json
->>>>>>> main
+hoangnhathuy/
+log/

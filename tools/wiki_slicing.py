@@ -1,61 +1,44 @@
 import json
 import argparse
+from tqdm import tqdm
+from underthesea import word_tokenize, text_normalize
 from tools.wiki_utils import preprocess_slicing
+from traitlets.config.loader import ArgumentParser
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-path", type=str, default="datasets/wikipedia.jsonl")
-    parser.add_argument("--output-path", type=str, default="datasets/wikicorpus/wiki.jsonl")
-    parser.add_argument("--test-mode", type=bool, default=False)
-    return parser.parse_args()
+    parser.add_argument("--data-path", type=str, default="qatask/database/datasets/wikipedia.jsonl")
+    parser.add_argument("--output-path", type=str, default="qatask/database/datasets/wikicorpus/wiki.jsonl")
+    parser.add_argument("--debug-mode", action='store_true')
+    args = parser.parse_args()
+    if args.debug_mode:
+        args.output_path = args.output_path[:-6] + '_debug.jsonl'
+    return args
 
 def main():
     args = parse_arguments()
-    data_path = args.data_path
-    with open(args.output_path, "w") as g:
-        # control variable to produce small length sliced corpus, in purpose of examining the results
-        # control = 0 
-        with open(data_path) as f:
-            id = 0
-            for line in f:
-                # control += 1
-                # if(control > 10):
-                #     break
-                # Parse document
-                doc = json.loads(line)
-                if "định hướng" in doc['title']:
-                    continue
-                doc['text'] = preprocess_slicing(doc['text'])
-                lstpos = 0
-                cnt = 0
-                for pos, c in enumerate(doc['text']):
-                  if c == "#":
-                    cnt += 1
-                    if cnt > 2:
-                        temp = {
-                            "id": str(id),
-                            "title": doc['title'],
-                            "text": doc['title'] + " " + doc["text"][lstpos:pos].replace("#", " ")
-                        }
-                        json.dump(temp, g, ensure_ascii=False)
-                        g.write("\n")
-                        id += 1
-                        cnt = 0
-                        lstpos = pos + 1
-                    else:
-                        # c = ''
-                        pass
-                if id % 100000 == 0:
-                    print("Created {} documents".format(id+1))
-                temp = {
-                    "id": str(id),
-                    "title": doc['title'],
-                    "text": doc["text"][lstpos:]
-                }
-                json.dump(temp, g, ensure_ascii=False)
-                g.write("\n")
-                id += 1
-                # print(id)
-            print("Genrated {} docuements".format(id+1))              
+    dict_data_squad = []
+    lines = open(args.data_path, 'r').readlines()
+    id = 0
+    for step, line in tqdm(enumerate(lines), total=len(lines)):
+        if args.debug_mode:
+            if step+1 == 10: break
+        doc = json.loads(line)
+        if doc['title'] == "Trang Chính" or "(định hướng)" in doc['title']: continue
+        text = preprocess_slicing(doc['text'])
+        passages = [t.strip() for t in text.split("<endl>")][1:]   # exclude the first `single-title-pararaph`
+        for passage in passages:
+            dict_data_squad.append({
+                "id": str(id),
+                "title": doc['title'],
+                "text": "{}: {}".format(doc['title'], passage)
+            })
+            id += 1
+    
+    print("Generated {} docuements".format(id+1))
+    with open(args.output_path, 'w') as out_file:
+        for item in dict_data_squad:
+            out_file.write("{}\n".format(json.dumps(item, ensure_ascii=False)))
+
 if __name__ == "__main__":
     main()

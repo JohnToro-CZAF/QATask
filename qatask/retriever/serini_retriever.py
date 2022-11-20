@@ -188,6 +188,7 @@ class BM25Retriever(BaseRetriever):
         print("Retrieved passages.")
         return data
 
+
 if __name__ == "__main__":
     searcher = FaissSearcher(
     'checkpoint/indexes/colbert-v2',

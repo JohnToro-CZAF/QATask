@@ -134,8 +134,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_path_fn', type=str, default='datasets/wikipedia.jsonl')
     parser.add_argument('--save_path', type=str, default='qatask/database/wikipedia_db/wikisqlite_post.db')
+    parser.add_argument('--preprocess', type=str, default='qatask/preprocess/dummy.py')
+    parser.add_argument('--num-workers', type=int, default=1)
+
     args = parser.parse_args()
-    store_single_file(args.data_path_fn, args.save_path, "qatask/preprocess/dummy.py", 1)
+    store_single_file(args.data_path_fn, args.save_path, args.preprocess, args.num_workers)
 
 if __name__ == '__main__':
     main()
