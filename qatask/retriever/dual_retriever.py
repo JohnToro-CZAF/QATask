@@ -7,10 +7,11 @@ import sqlite3
 import os.path as osp
 import os
 from tqdm import tqdm
-import numpy as np
+# from CocCocTokenizer import PyTokenizer
 
 class DualBM25Retriever(BaseRetriever):
     def __init__(self, cfg, db_path):
+        # self.T = PyTokenizer(load_nontone_data=True)
         self.searcher = LuceneSearcher(cfg.index_path)
         self.searcher.set_language('vn')
 
@@ -25,7 +26,8 @@ class DualBM25Retriever(BaseRetriever):
     def __call__(self, data):
         print("Retrieving passages...")
         for question in tqdm(data):
-            hits = self.searcher.search(question['question'], self.top_passage)
+            query = question['question']
+            hits = self.searcher.search(query, self.top_passage)
             candidate_passages, doc_ids, scores_bm25 = [], [], []
 
             doc_ids = [hit.docid for hit in hits]

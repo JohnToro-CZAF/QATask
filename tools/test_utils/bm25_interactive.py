@@ -15,6 +15,7 @@ import os.path as osp
 import sqlite3
 from pyserini.search.lucene import LuceneSearcher
 from qatask.retriever.serini_retriever import BM25Retriever
+from fuzzywuzzy import process
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -42,7 +43,7 @@ mode = 'postprocessing'
 # ------------------------------------------------------------------------------
 
 
-def process(query, k=5):
+def process_query(query, k=5):
     hits = ranker.search(query)
     
     # Finding top k passages id and their respective scores
@@ -71,25 +72,29 @@ def process(query, k=5):
             text_passage = cur.execute("SELECT text FROM documents WHERE id= ?", (str(doc_id), )).fetchone()[0]
             passage_vn = (doc_id, wikipage, score, text_passage)
             candidate_passages.append(passage_vn)
-
+    answer = None
     if mode=='retrieving':
+        
         table = prettytable.PrettyTable(
             ['Rank', 'Doc Id', 'Wiki Page', 'Doc Score', 'Content']
         )
         for idx, passage in enumerate(candidate_passages):
             table.add_row([idx + 1, passage[0], passage[1], '%.5g' % passage[2], passage[3]])
     else:
+        choices = [choice[1] for choice in candidate_passages]
+        answer = process.extractOne(query, choices)[0]
         table = prettytable.PrettyTable(
             ['Rank', 'Doc Id', 'Wiki Page', 'Doc Score']
         )
         for idx, passage in enumerate(candidate_passages):
             table.add_row([idx + 1, passage[0], passage[1], '%.5g' % passage[2]])
+    print(answer)
     print(table)
 
 
 banner = """
 Interactive BM25 pysirini Retriever
->> process(question, k=1)
+>> process_query(question, k=1)
 >> usage()
 """
 

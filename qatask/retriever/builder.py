@@ -1,6 +1,6 @@
 from .tfidf_retriever import TFIDFRetriever
 from .serini_retriever import ColbertRetriever, DPRRetriever, ANCERetriever, BM25Retriever, HybridRetriever, HybridRetrieverOnline
-
+from .tokenized_retriever import TokBM25Retriever
 from .dual_retriever import DualBM25Retriever
 
 def build_retriever(cfg, tokenizer, db_path):
@@ -20,6 +20,8 @@ def build_retriever(cfg, tokenizer, db_path):
         return HybridRetrieverOnline(cfg, db_path)
     elif cfg.type == "dual_bm25":
         return DualBM25Retriever(cfg, db_path)
+    elif cfg.type == "tok_bm25":
+        return TokBM25Retriever(cfg, db_path)
     else:
         assert cfg.type == "default", "NotImplemented retriever{}".format(cfg.type)
     

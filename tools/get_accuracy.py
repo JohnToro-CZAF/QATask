@@ -63,16 +63,57 @@ def get_answer_accuracy(preds, truths):
 
     return dict(em=np.mean(em_scores), f1=np.mean(f1_scores))
 
+def get_answer_accuracy_multiple(preds, truths):
+    em_scores = []
+    f1_scores = []
+
+    for pred, truth in zip(preds, truths):
+        if truth['category'] == 'PARTIAL_ANNOTATION': continue
+        if truth['category'] == 'FULL_ANNOTATION':
+            truth_answer = truth['answer']
+        else:
+            continue
+            # truth_answer = None
+        pred_answer = pred['answer']
+        em, f1 = 0, 0
+        for ans in pred_answer:
+            em = max(em, compute_em(ans, truth_answer))
+            f1 = max(f1, compute_f1(ans, truth_answer))
+        em_scores.append(em)
+        f1_scores.append(f1)
+    return dict(em=np.mean(em_scores), f1=np.mean(f1_scores))
+
 def get_retrieving_accuracy(pred, truth) -> float:
     # compare pred and truth and return accuracy
     match = 0
+    t = 0
+    emp = 0
     for idx, question in enumerate(pred):
+        truth[idx]['title'] = truth[idx]['title'].replace('( ', '(').replace(' )', ')')
+        if '(định hướng)' in truth[idx]['title']:
+            truth[idx]['title'] = truth[idx]['title'].replace('(định hướng)', '')
+        if '_' in question['question']:
+            question['question'] = question['question'].replace('_', ' ')
         if question['question'] == truth[idx]['question']:
+            flag = 0
+            truth[idx]['title'] = truth[idx]['title'].strip()
+            if truth[idx]['title'] == '':
+                emp += 1
+                continue
             for candidate in question['candidate_wikipages']:
                 if candidate == 'wiki/' + truth[idx]['title'].replace(" ","_"):
+                  flag = 1
                   match += 1
                   break
-    return match/len(pred)
+            if flag == 0:
+                t += 1
+                # print('='*50)
+                # print(question['question'])
+                # print(question['candidate_wikipages'])
+                # print('x',truth[idx]['title'],'x')
+                
+    print("failed to retrieve: {} questions".format(t), "while there are {} empty title".format(emp))
+    return match/(len(pred) - emp)
 
 def main(args):
     # open json file and read the data into a variable
@@ -87,9 +128,12 @@ def main(args):
     assert len(truth) > len(pred)
     truth = truth[:len(pred)]
 
-    ans_acc = get_answer_accuracy(pred, truth)
+    # ans_acc = get_answer_accuracy(pred, truth)
     re_acc = get_retrieving_accuracy(pred, truth)
-    print(ans_acc, re_acc)
+    # print(ans_acc)
+    mul_ans = get_answer_accuracy_multiple(pred, truth)
+    print(mul_ans)
+    print(re_acc)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

@@ -6,6 +6,7 @@ import string
 import numpy as np
 from underthesea import ner
 import re
+import json
 
 class ListDataset(Dataset):
     def __init__(self, original_list):
@@ -28,11 +29,13 @@ class BertReader(BaseReader):
                                  device="cuda:0", 
                                  batch_size=self.cfg.batch_size)
     def clean_ctx(self, ctx):
-      pattern = re.compile(r'\(|\)|\[|\]|\"|\'|\{|\}|\?|\!|\,|\;|\_|\=|\+|\*|\/|\%|\$|\#|\@|\^|\&|\~|\`|\|')
+      pattern = re.compile(r'\(|\)|\[|\]|\"|\'|\{|\}|\?|\!|\;|\=|\+|\*|\%|\$|\#|\@|\^|\&|\~|\`|\|')
       ctx = pattern.sub('', ctx)
+      ctx = ctx.replace('_', ' ')
       ctx = ctx.replace("-", " đến ")
       ctx = ctx.replace(":", " là ")
       ctx = ctx.replace("=", " bằng ")
+      ctx = ctx.replace("\/", " ")
       return ctx
     def prepare(self, data):
         """
@@ -131,7 +134,12 @@ class BertReader(BaseReader):
         res_item['scores'].append(np.sum(info['scores']))
         res_item['passage_scores'].append(np.sum(info['passage_scores']))
         res_item['answers'].append(rsptext)
-      print(res_item)
+
+      # Logging when voting to see the results
+      with open('logs/voting.json', 'a') as f:
+        json.dump(res_item, f, ensure_ascii=False, indent=4)
+        f.write('\n')
+      # print(res_item)
       return res_item
 
     def getbestans(self, item):
@@ -166,7 +174,7 @@ class BertReader(BaseReader):
         contexts = [passage[3] for passage in item['candidate_passages']]
 
         augmented_passage_scores = passage_scores.copy()
-
+        # augmented_passage_scores = []
         # for i in range(len(contexts)):
         #   for j in range(i+1, len(contexts), 1):
         #     for k in range(j+1, len(contexts), 1):
@@ -194,14 +202,17 @@ class BertReader(BaseReader):
           bestans = self.getbestans(item)
           saved_format['data'].append({'id':'testa_{}'.format(idx+1),
                                         'question':item['question'],
-                                        'answer': bestans,
+                                        # 'answer': bestans,
+                                        'answer': item['answers'],
+                                        'scores': item['scores'],
+                                        'passage_scores': item['passage_scores'],
                                         'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']]})
           if getattr(self.cfg, 'logpth') is not None:
             saved_logs['data'].append({'id':'testa_{}'.format(idx+1),
                                         'question':item['question'],
                                         'answer': item['answers'],
                                         'scores': item['scores'], 'passage_scores': item['passage_scores'], 
-                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']]})
+                                        'candidate_passages': [passage[3] for passage in data[idx]['candidate_passages']]})
       if getattr(self.cfg, 'logpth') is not None:
         self.logging(saved_logs)
       print("reading done")

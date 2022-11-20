@@ -33,10 +33,20 @@ class Pipeline:
         
     def __call__(self, set_questions, mode) -> str:
         results = self.retriever(set_questions)
-        # print(results)
         results = self.reader(results)
         final_results = self.postprocessor(results, mode)
         return final_results
+        # for idx, item in enumerate(results):
+        #     item['candidate_wikipages'] = [passage[1] for passage in item['candidate_passages']]
+            # item.pop('candidate_passages', None)
+        # saved_format = {'data': []}
+        # for idx, item in enumerate(results):
+        #     saved_format['data'].append({'id':'testa_{}'.format(idx+1),
+        #                     'question':item['question'],
+        #                     'candidate_wikipages': item['candidate_wikipages'],
+        #                     'candidate_passages': item['candidate_passages'],
+        #                     'len': len(item['candidate_passages'])})
+        # return saved_format
 
 def main() -> None:
     args = parse_arguments()
@@ -50,7 +60,6 @@ def main() -> None:
         data = [item for item in data if item['category'] == 'FULL_ANNOTATION']
     elif args.mode == "test":
         pass
-
     # Limit the size when inferring
     if args.mode == "val":
         data = data[:min(args.size_infer, len(data))]

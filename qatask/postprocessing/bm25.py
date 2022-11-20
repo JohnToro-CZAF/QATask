@@ -8,6 +8,7 @@ from tqdm import tqdm
 from fuzzywuzzy import process
 import string
 import nltk
+from collections import Counter
 
 class BM25PostProcessor(BasePostProcessor):
     def __init__(self, cfg=None, db_path=None):
@@ -98,58 +99,80 @@ class BM25PostProcessor(BasePostProcessor):
     def process(self, data, mode):
         print("Postprocessing...")
         for question in tqdm(data["data"]):
-            if question['answer'] is None:
-                if mode == "test":
-                    question.pop('candidate_wikipages', None)
-                continue
-            anstype = self.checktype(question['answer'], question['question'])
-            if anstype > 0:
-                if mode == "test":
-                    question.pop('candidate_wikipages', None)
-                if anstype == 3:
-                    question['answer'] = None
-                elif anstype == 2:
-                    question['answer'] = self.date_transform(question['answer'], question['question'])
-                    question['answer'] = question['answer'].strip()
-                elif anstype == 1:
-                    tmpans = ""
-                    for d in question['answer'].lower().translate(str.maketrans('','',string.punctuation)).split():
-                        if d.isnumeric():
-                            tmpans = d
-                    question['answer'] = tmpans
-                    question['answer'] = question['answer'].strip()
-                continue
-            print(question['question'], " x ", question['answer'], " x ")
-            hits = self.searcher.search(question['answer'], 5)
-            doc_ids = [hit.docid for hit in hits]
-            for hit in hits:
-                print(hit.raw)
-            wikipages = question['candidate_wikipages']
-            for doc_id in doc_ids:
-                res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (doc_id, ))
-                wikipage = res.fetchone()
-                wikipages.append(wikipage[0])
-            choices = [wikipage[5:].replace("_", " ") for wikipage in wikipages]
+            final_ans = []
+            for reader_ans in question['answer']:
+                post_ans = None
+                if reader_ans is None:
+                    if mode == "test":
+                        if question['candidate_wikipages'] != []:
+                            question.pop('candidate_wikipages', None)
+                    continue
+                anstype = self.checktype(reader_ans, question['question'])
+                if anstype > 0:
+                    if anstype == 3:
+                        pass
+                    elif anstype == 2:
+                        post_ans = self.date_transform(reader_ans, question['question'])
+                        post_ans = reader_ans.strip()
+                    elif anstype == 1:
+                        post_ans = ""
+                        for d in reader_ans.lower().translate(str.maketrans('','',string.punctuation)).split():
+                            if d.isnumeric():
+                                post_ans = d
+                        post_ans = post_ans.strip()
+                else:
+                    hits = self.searcher.search(reader_ans, self.top_k)
+                    doc_ids = [hit.docid for hit in hits]
+                    # for hit in hits:
+                    #     print(hit.raw)
+                    wikipages = question['candidate_wikipages'].copy()
+                    for doc_id in doc_ids:
+                        res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (doc_id, ))
+                        wikipage = res.fetchone()
+                        wikipages.append(wikipage[0])
+                    choices = [wikipage[5:].replace("_", " ") for wikipage in wikipages]
 
-            query = question['answer']
-            if query.startswith("."):
-                pass
+                    query = reader_ans
+                    query = query.replace('_', " ").strip()
+
+                    if not query.startswith("."):
+                        query = query.translate(str.maketrans('','',string.punctuation))
+                        query.strip()
+                    if 'tỉnh' in query:
+                        query = query.replace('tỉnh', '')
+                    if 'Tỉnh' in query:
+                        query = query.replace('Tỉnh', '')
+
+                    try:
+                        wikipage = process.extractOne(query, choices)[0]
+                        # print(wikipage)
+                        post_ans = 'wiki/' + wikipage.replace(" ", "_")
+                    except:
+                        print("can not retrieve this question wikipage")
+
+                # For the test mode. Validation mode needs
+                final_ans.append(post_ans)
+
+            if len(final_ans) > 1:
+                # Selecting the max score after postprocessing
+                id = 0
+                for idx, ans in enumerate(final_ans):
+                    if question['scores'][idx] + question['passage_scores'][idx] > question['scores'][id] + question['passage_scores'][id]:
+                        id = idx
+                ids_sorted = sorted(range(len(question['scores'])),key=lambda x: question['scores'][x] + question['passage_scores'][x], reverse=True)
+                # print(ids_sorted)
+                # print(final_ans)
+                # print(question['scores'])
+                # print(question['passage_scores'])
+                question['answer'] = [final_ans[id] for id in ids_sorted][:15]
+                # print(question['answer'])
+                question['answer'] =  [max(set(question['question']), key = question['question'].count)]
             else:
-                query = query.translate(str.maketrans('','',string.punctuation))
-                query.strip()
-            if 'tỉnh' in query:
-                query = query.replace('tỉnh', '')
-            # print(query)
+                question['answer'] = final_ans[0]
 
-            try:
-                wikipage = process.extractOne(query, choices)[0]
-                print(wikipage)
-                question['answer'] = 'wiki/' + wikipage.replace(" ", "_")
-            except:
-                print("can not retrieve this question wikipage")
-            # For the test mode. Validation mode needs
             if mode == "test":
-                question.pop('candidate_wikipages', None)
+                if question['candidate_wikipages'] != []:
+                    question.pop('candidate_wikipages', None)
 
         return data
 

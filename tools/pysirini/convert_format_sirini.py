@@ -10,9 +10,11 @@ def parse_arguments():
 def main():
     args = parse_arguments()
     data_path = args.data_path
+    cnt = 0
     with open(args.output_path, "w") as g:
         with open(data_path) as f:
             for line in f:
+                cnt += 1
                 # Parse document
                 doc = json.loads(line)
                 temp = {
@@ -21,5 +23,6 @@ def main():
                 }
                 json.dump(temp, g, ensure_ascii=False)
                 g.write("\n")
+    print("{} Documents are converted sirini format, ready to index".format(cnt))
 if __name__ == "__main__":
     main()

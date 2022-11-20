@@ -14,7 +14,7 @@ reader:
   logpth: "logs/"
 retriever:
   type: dual_bm25
-  top_passage: 13
+  top_passage: 12
   top_title: 3
   index_path: checkpoint/indexes/BM25
   index_path_title: checkpoint/indexes/BM25_post

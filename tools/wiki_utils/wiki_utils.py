@@ -2,7 +2,8 @@
 
 import regex as re
 from html.parser import HTMLParser
-from underthesea import word_tokenize, text_normalize
+from .fst_tokenizer import UITws_v1
+# from underthesea import word_tokenize, text_normalize
 
 def preprocess(article):
     wikipage = article['title']
@@ -18,7 +19,7 @@ def preprocess(article):
     return {'id': article['id'], 'text': text, 'wikipage': wikipage}
 
 def pre_process(sentence):
-    text = re.sub(re.compile('(\nBULLET::::-)|(BULLET::::-)|(BULLET::::\d+)'), ' ', sentence)
+    text = re.sub(re.compile('(\nBULLET::::-)|(BULLET::::-)|(BULLET::::\d+)'), ' , ', sentence)
     text = re.sub(re.compile('\\"'), '', text) 
     lines = re.split(re.compile('\n|=+'), text)
     lines = [line.strip() for line in lines]
@@ -28,10 +29,22 @@ def pre_process(sentence):
 
 def preprocess_slicing(text):
     text = re.sub(re.compile("\n\n"), "#", text)
-    text = re.sub(re.compile(r"=\n|==\n|===\n|====\n|=====\n"), ' ', text)
-    text = re.sub(re.compile(r"=|==|===|====|====="), '', text)
+    text = re.sub(re.compile(r"=\n|==\n|===\n|====\n|=====\n"), ', ', text)
+    text = re.sub(re.compile(r"=|==|===|====|====="), ' ', text)
     text = re.sub(re.compile(r"BULLET::::-|BULLET::::"), '', text)
     text = re.sub(re.compile(r"\n"), '.#', text)
     text = re.sub(re.compile(r"\s+"), ' ', text)
     text = re.sub(re.compile(r"\.\s+"), '.#', text)
+    text = re.sub(re.compile(r"\.\."), '. ', text)
+    return text
+
+def preprocess_article(text):
+    text = re.sub(re.compile("\n\n"), ". ", text)
+    text = re.sub(re.compile(r"=\n|==\n|===\n|====\n|=====\n"), '', text)
+    text = re.sub(re.compile(r"=|==|===|====|====="), '', text)
+    text = re.sub(re.compile(r"BULLET::::-|BULLET::::"), '', text)
+    text = re.sub(re.compile(r"\n"), '. ', text)
+    text = re.sub(re.compile(r"\s+"), ' ', text)
+    text = re.sub(re.compile(r"\.\s+"), '. ', text)
+    text = re.sub(re.compile(r"\.\."), '. ', text)
     return text

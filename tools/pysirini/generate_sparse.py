@@ -8,7 +8,7 @@ from tqdm import tqdm
 
 def parse_arguments():
     parser = argparse.ArgumentParser("ZaloAI")
-    parser.add_argument("--cfg", type=str, required=True)
+    parser.add_argument("--cfg", type=str, default='configs/retriever/BM25.yaml')
     return parser.parse_args()
 
 def sparse_generator(cfg):
