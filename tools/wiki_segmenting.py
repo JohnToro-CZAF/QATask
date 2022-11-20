@@ -49,7 +49,7 @@ def create_segments(passages, title):
             segment = segment + "."
         
         segments.append(segment)
-        i += 2 if j < 2 else j//2
+        i += max(1, (j-i)//2)
 
     return segments
 
