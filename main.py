@@ -64,7 +64,7 @@ def main() -> None:
     if args.mode == "val":
         data = data[:min(args.size_infer, len(data))]
     elif args.mode == "test":
-        pass
+        data = data[:min(args.size_infer, len(data))]
 
     # Auto saving as json
     results = zaloai_pipeline(data, args.mode)

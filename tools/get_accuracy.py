@@ -56,6 +56,8 @@ def get_answer_accuracy(preds, truths):
             truth_answer = truth['answer']
         else:
             continue
+        if pred.get('ans_type', 0) > 0:
+            continue
             # truth_answer = None
         pred_answer = pred['answer']
         em = em_scores.append(compute_em(pred_answer, truth_answer))
@@ -64,9 +66,8 @@ def get_answer_accuracy(preds, truths):
     return dict(em=np.mean(em_scores), f1=np.mean(f1_scores))
 
 def get_answer_accuracy_multiple(preds, truths):
-    em_scores = []
-    f1_scores = []
-
+    tot = 0
+    cnt = 0
     for pred, truth in zip(preds, truths):
         if truth['category'] == 'PARTIAL_ANNOTATION': continue
         if truth['category'] == 'FULL_ANNOTATION':
@@ -74,14 +75,25 @@ def get_answer_accuracy_multiple(preds, truths):
         else:
             continue
             # truth_answer = None
+        # if pred.get('ans_type', 0) > 0:
+        #     continue
+        # print(pred['answer'][0], " x ", truth['answer'])
+        tot += 1
+        flag = 0
         pred_answer = pred['answer']
-        em, f1 = 0, 0
+        # if pred_answer[0] == truth['answer']:
+        #     cnt += 1
+        #     flag = 1
         for ans in pred_answer:
-            em = max(em, compute_em(ans, truth_answer))
-            f1 = max(f1, compute_f1(ans, truth_answer))
-        em_scores.append(em)
-        f1_scores.append(f1)
-    return dict(em=np.mean(em_scores), f1=np.mean(f1_scores))
+            cnt += int(ans.lower() == truth['answer'].lower())
+            if ans.lower() == truth['answer'].lower():
+                flag = 1
+                break
+        if flag == 0:
+            print(pred['answer'][0], " x ", truth['answer'])
+            # print('original_ans: ', pred['original_ans'][1:])
+            # print('possible_ans: ', pred['candidate_answer'][1:])
+    return cnt/tot
 
 def get_retrieving_accuracy(pred, truth) -> float:
     # compare pred and truth and return accuracy
@@ -129,11 +141,11 @@ def main(args):
     truth = truth[:len(pred)]
 
     # ans_acc = get_answer_accuracy(pred, truth)
-    re_acc = get_retrieving_accuracy(pred, truth)
+    # re_acc = get_retrieving_accuracy(pred, truth)
     # print(ans_acc)
     mul_ans = get_answer_accuracy_multiple(pred, truth)
     print(mul_ans)
-    print(re_acc)
+    # print(re_acc)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

@@ -17,7 +17,28 @@ class ListDataset(Dataset):
 
     def __getitem__(self, i):
         return self.original_list[i]
-        
+
+def checktype(text, question):
+    text = text.lower().translate(str.maketrans('','',string.punctuation))
+    words = text.split()
+    """Check if the text is a date or a number."""
+    time_indicators = ["năm nào", "năm mấy", "năm bao nhiêu", "ngày bao nhiêu", "ngày tháng năm nào", "thời điểm nào", "ngày tháng âm lịch nào hằng năm", "thời gian nào", "lúc nào", "giai đoạn nào trong năm"]
+    if any(idc in question.lower() for idc in time_indicators):
+        return 2
+    if "có bao nhiêu" in question:
+        for d in words:
+            if d.isnumeric():
+                return 1
+    if text == "":
+        return 3
+    words = text.split()
+    for w in words:
+        if w == 'năm' or w == 'tháng' or w == 'ngày':
+            return 2
+    if len(words) == 1 and words[0].isdigit():
+        return 1
+    return 0
+
 class BertReader(BaseReader):
     # class __name__
     def __init__(self, cfg=None, tokenizer=None, db_path=None) -> None:
@@ -54,8 +75,8 @@ class BertReader(BaseReader):
             #     for k in range(j+1, len(ctxs), 1):
             #       res.append({'question': item['question'], 'context': ctxs[i] + ". " + ctxs[j] + ". " + ctxs[k]})
             # Notice that, this is only allowed when len(ctxs) is divisible by 3 (change in main config)
-            for i in range(0, len(ctxs), 2):
-              res.append({'question': item['question'], 'context': ctxs[i] + ". " + ctxs[i+1]})
+            # for i in range(0, len(ctxs), 2):
+            #   res.append({'question': item['question'], 'context': ctxs[i] + ". " + ctxs[i+1]})
         return res
 
     def postprocess(self, prepared, predicted):
@@ -179,8 +200,8 @@ class BertReader(BaseReader):
         #   for j in range(i+1, len(contexts), 1):
         #     for k in range(j+1, len(contexts), 1):
         #       augmented_passage_scores.append((passage_scores[i] + passage_scores[j] + passage_scores[k])/3)
-        for i in range(0, len(contexts), 2):
-          augmented_passage_scores.append((passage_scores[i] + passage_scores[i+1])/2)
+        # for i in range(0, len(contexts), 2):
+        #   augmented_passage_scores.append((passage_scores[i] + passage_scores[i+1])/2)
 
         data_passage_scores.append(augmented_passage_scores)
         _data.append({'question': question, 'contexts': contexts})
@@ -200,13 +221,27 @@ class BertReader(BaseReader):
           # TODO: Select answer with max score and max score of retrieved passage
           item['passage_scores'] = data_passage_scores[idx]
           bestans = self.getbestans(item)
-          saved_format['data'].append({'id':'testa_{}'.format(idx+1),
+          ans_type = checktype(bestans, item['question'])
+          if ans_type > 0:
+            saved_format['data'].append({'id':'testa_{}'.format(idx+1),
+                                        'question':item['question'],
+                                        # 'answer': bestans,
+                                        'answer': bestans,
+                                        'scores': item['scores'],
+                                        'passage_scores': item['passage_scores'],
+                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']],
+                                        'candidate_passages': [passage[3] for passage in data[idx]['candidate_passages']],
+                                        'ans_type': ans_type})   
+          else:
+            saved_format['data'].append({'id':'testa_{}'.format(idx+1),
                                         'question':item['question'],
                                         # 'answer': bestans,
                                         'answer': item['answers'],
                                         'scores': item['scores'],
                                         'passage_scores': item['passage_scores'],
-                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']]})
+                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']],
+                                        'candidate_passages': [passage[3] for passage in data[idx]['candidate_passages']],
+                                        'ans_type': ans_type})
           if getattr(self.cfg, 'logpth') is not None:
             saved_logs['data'].append({'id':'testa_{}'.format(idx+1),
                                         'question':item['question'],

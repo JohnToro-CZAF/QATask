@@ -9,6 +9,74 @@ from fuzzywuzzy import process
 import string
 import nltk
 from collections import Counter
+from transformers import pipeline
+import itertools
+from torch.utils.data import DataLoader, Dataset
+import numpy as np
+import string
+
+from collections import Counter
+class ListDataset(Dataset):
+    def __init__(self, original_list):
+        self.original_list = original_list
+
+    def __len__(self):
+        return len(self.original_list)
+
+    def __getitem__(self, i):
+        return self.original_list[i]
+def most_frequent(List, k):
+    occurence_count = Counter(List)
+    return occurence_count.most_common(k)
+
+def matching(short_form: str, wikipage: str):
+    match = 0
+    words_wiki = wikipage[5:].replace('_', ' ').split()
+    words_short_form = short_form.split()
+    decay = 0.5
+    constant = 1
+    for w in words_short_form:
+        if w in words_wiki:
+            match += constant
+            constant *= decay
+    return match
+
+def matching_nospace(short_form: str, wikipage: str):
+    match = 0
+    words_wiki = wikipage.split()
+    words_short_form = short_form.split()
+    decay = 0.5
+    constant = 1
+    for w in words_short_form:
+        if w in words_wiki:
+            match += constant
+            constant *= decay
+    return match
+
+def select_nearest(short_form: str, wikipages):
+    id = 0
+    lst = 0
+    for idx, wiki in enumerate(wikipages):
+        if matching(short_form, wiki) > lst:
+            id = idx
+            lst = matching(short_form, wiki)
+    return wikipages[id]
+
+def select_nearsest_shortest_withspace(short_form:str, wikipages):
+    mx = 0
+    pos = []
+    # print(short_form, wikipages)
+    for wiki in wikipages:
+        # print(matching_nospace(short_form, wiki))
+        if matching_nospace(short_form, wiki) > mx:
+            mx = matching_nospace(short_form, wiki) 
+    # print(mx)
+    for wiki in wikipages:
+        # print(matching_nospace(short_form, wiki))
+        if matching_nospace(short_form, wiki) == mx:
+            pos.append(wiki)
+    # print(pos)
+    return min(pos, key=lambda x: len(x))
 
 class BM25PostProcessor(BasePostProcessor):
     def __init__(self, cfg=None, db_path=None):
@@ -20,6 +88,12 @@ class BM25PostProcessor(BasePostProcessor):
         self.top_k = cfg.top_k
         con = sqlite3.connect(osp.join(os.getcwd(), db_path))
         self.cur = con.cursor()
+        self.pipeline = pipeline('question-answering', 
+                                #  model='nguyenvulebinh/vi-mrc-large', 
+                                #  tokenizer='nguyenvulebinh/vi-mrc-large', 
+                                model='checkpoint/pretrained_model/checkpoint-3906',
+                                tokenizer='checkpoint/pretrained_model/checkpoint-3906',
+                                 device="cuda:0")
     
     def checktype(self, text, question):
         text = text.lower().translate(str.maketrans('','',string.punctuation))
@@ -96,85 +170,235 @@ class BM25PostProcessor(BasePostProcessor):
                     ans += 'mùng' + ' ' + lookup["mùng"] + " "
         return ans.strip()
 
+    def save_question(self, question, mode):             
+        if mode == "test":
+            if 'candidate_wikipages' in question.keys():
+                question.pop('candidate_wikipages', None)
+            if 'candidate_passages' in question.keys():
+                question.pop('candidate_passages', None)
+            if 'scores' in question.keys():
+                question.pop('scores', None)
+            if 'passage_scores' in question.keys():
+                question.pop('passage_scores', None)
+            if 'ans_type' in question.keys():
+                    question.pop('ans_type', None)
+            if type(question['answer']) is not str:
+                question['answer'] = question['answer'][0]
+        return question
+
+    def merge(self, item):
+      res_item = {
+        'id': item['id'],
+        'question': item['question'],
+        'scores': [],
+        'passage_scores': [],
+        'candidate_passages': [],
+        'answer': []
+      }
+      answers_dict = {}
+      for idx, ans in enumerate(item['answer']):
+        if ans in answers_dict.keys():
+            answers_dict[ans]['scores'] += item['scores'][idx]
+        else:
+          answers_dict[ans] = {
+            "answer": ans,
+            "scores": item['scores'][idx],
+            "passage_scores": item['passage_scores'][idx],
+            "candidate_passages": item["candidate_passages"][idx]
+          }
+      for _, ans in answers_dict.items():
+        res_item['scores'].append(ans['scores'])
+        res_item['answer'].append(ans['answer'])
+        res_item['candidate_passages'].append(ans['candidate_passages'])
+        res_item['passage_scores'].append(ans['passage_scores'])
+    #   print(res_item['scores'], res_item['answer'])
+      return res_item
+
     def process(self, data, mode):
         print("Postprocessing...")
+        emp = {'data': []}
         for question in tqdm(data["data"]):
-            final_ans = []
-            for reader_ans in question['answer']:
-                post_ans = None
-                if reader_ans is None:
-                    if mode == "test":
-                        if question['candidate_wikipages'] != []:
-                            question.pop('candidate_wikipages', None)
-                    continue
-                anstype = self.checktype(reader_ans, question['question'])
-                if anstype > 0:
-                    if anstype == 3:
-                        pass
-                    elif anstype == 2:
-                        post_ans = self.date_transform(reader_ans, question['question'])
-                        post_ans = reader_ans.strip()
-                    elif anstype == 1:
-                        post_ans = ""
-                        for d in reader_ans.lower().translate(str.maketrans('','',string.punctuation)).split():
-                            if d.isnumeric():
-                                post_ans = d
-                        post_ans = post_ans.strip()
-                else:
+            if question['ans_type'] > 0:
+                anstype = question['ans_type']  
+                if anstype == 3:
+                    question['answer'] = None
+                elif anstype == 2:
+                    post_ans = self.date_transform(question['answer'], question['question'])
+                    if mode == "val":
+                        question['answer'] = [post_ans]
+                    else:
+                        question['answer'] = post_ans.strip()
+                elif anstype == 1:
+                    post_ans = ""
+                    for d in reader_ans.lower().translate(str.maketrans('','',string.punctuation)).split():
+                        if d.isnumeric():
+                            post_ans = d
+                    if mode == "val":
+                        question['answer'] = [post_ans.strip()]
+                    else:
+                        question['answer'] = post_ans.strip()
+                # emp['data'].append(question)
+            else:        
+                final_ans = []
+                for idx, reader_ans in enumerate(question['answer']):
+                    post_ans = None
+                    if reader_ans is None:
+                        # if mode == "test":
+                        #     if question['candidate_wikipages'] != []:
+                        #         question.pop('candidate_wikipages', None)
+                        continue
+                    # print('-'*100)
+                    # print("Reader answer: ", reader_ans)
+                    reader_ans = reader_ans.translate(str.maketrans('','',string.punctuation))
                     hits = self.searcher.search(reader_ans, self.top_k)
                     doc_ids = [hit.docid for hit in hits]
-                    # for hit in hits:
-                    #     print(hit.raw)
                     wikipages = question['candidate_wikipages'].copy()
                     for doc_id in doc_ids:
                         res = self.cur.execute("SELECT wikipage FROM documents WHERE id = ?", (doc_id, ))
                         wikipage = res.fetchone()
                         wikipages.append(wikipage[0])
                     choices = [wikipage[5:].replace("_", " ") for wikipage in wikipages]
-
                     query = reader_ans
                     query = query.replace('_', " ").strip()
-
                     if not query.startswith("."):
                         query = query.translate(str.maketrans('','',string.punctuation))
                         query.strip()
-                    if 'tỉnh' in query:
-                        query = query.replace('tỉnh', '')
-                    if 'Tỉnh' in query:
-                        query = query.replace('Tỉnh', '')
-
-                    try:
+                    choices.insert(0, "")
+                    # print(query, '-------', choices)
+                    if query in choices:
+                        wikipage = query
+                    else:
+                        # print(query, '-------', choices)
+                        # try:
                         wikipage = process.extractOne(query, choices)[0]
-                        # print(wikipage)
+                        # except:
+                            # wikipage = ""
+                        # print("answer: ", wikipage)
+                    # print("answer: ", wikipage)
+                    if wikipage == "":
+                        post_ans = None
+                        question['scores'][idx] = 0
+                        question['passage_scores'][idx] = 0
+                    else:
                         post_ans = 'wiki/' + wikipage.replace(" ", "_")
-                    except:
-                        print("can not retrieve this question wikipage")
+                    final_ans.append(post_ans)
 
-                # For the test mode. Validation mode needs
-                final_ans.append(post_ans)
-
-            if len(final_ans) > 1:
-                # Selecting the max score after postprocessing
-                id = 0
-                for idx, ans in enumerate(final_ans):
-                    if question['scores'][idx] + question['passage_scores'][idx] > question['scores'][id] + question['passage_scores'][id]:
-                        id = idx
                 ids_sorted = sorted(range(len(question['scores'])),key=lambda x: question['scores'][x] + question['passage_scores'][x], reverse=True)
-                # print(ids_sorted)
-                # print(final_ans)
-                # print(question['scores'])
-                # print(question['passage_scores'])
-                question['answer'] = [final_ans[id] for id in ids_sorted][:15]
-                # print(question['answer'])
-                question['answer'] =  [max(set(question['question']), key = question['question'].count)]
-            else:
-                question['answer'] = final_ans[0]
 
+                question['answer'] = [final_ans[id] for id in ids_sorted]
+                question['candidate_passages'] = [question['candidate_passages'][id] for id in ids_sorted]
+                question['scores'] = [question['scores'][id] for id in ids_sorted]
+                question['passage_scores'] = [question['passage_scores'][id] for id in ids_sorted]
+
+                cp_qs = question.copy()
+                question = self.merge(cp_qs)
+                # print(question['answer'], question['scores'])
+
+                ids_sorted = sorted(range(len(question['scores'])),key=lambda x: question['scores'][x], reverse=True)
+                # print("before"*20)
+                # print(question)
+                denoisy = 1
+                # Huy's code
+                # print(question['answer'], question['scores'])
+                original_ans = [question["answer"][id] for id in ids_sorted]
+                if mode == "val":
+                    question['original_ans'] = original_ans
+                    question['candidate_answer'] = [question['answer'][id] for id in ids_sorted]
+                
+                question['answer'] = [question['answer'][id] for id in ids_sorted][:denoisy]
+                # 1 line below is for baseline
+                emp['data'].append(self.save_question(question, mode))
+                continue
+                question['candidate_passages'] = [question['candidate_passages'][id] for id in ids_sorted][:denoisy]
+                unique_candidates = {}
+                print(question['answer'])
+                for idx, wikipage in enumerate(question['answer']):
+                    if wikipage not in unique_candidates.keys():
+                        unique_candidates[wikipage] = idx
+                import itertools
+                tuple_candidates = list(itertools.combinations(unique_candidates.keys(), 2))
+                concat_passages = []
+                for x,y in tuple_candidates:
+                    passage1 = question["candidate_passages"][unique_candidates[x]]
+                    passage2 = question["candidate_passages"][unique_candidates[y]]
+                    concat_passage = passage1 + ". " + passage2
+                    concat_passage_reverse = passage2 + ". " + passage1
+                    concat_passages.append(concat_passage)
+                    concat_passages.append(concat_passage_reverse)
+                if len(tuple_candidates) == 0:
+                    if mode == "val":
+                        question['answer'] = [question['answer'][0]]
+                    else:
+                        question['answer'] = question['answer'][0]
+                        if 'candidate_wikipages' in question.keys():
+                            question.pop('candidate_wikipages', None)
+                        if 'candidate_passages' in question.keys():
+                            question.pop('candidate_passages', None)
+                        if 'scores' in question.keys():
+                            question.pop('scores', None)
+                        if 'passage_scores' in question.keys():
+                            question.pop('passage_scores', None)
+                        if 'ans_type' in question.keys():
+                            question.pop('ans_type', None)
+                    emp['data'].append(question)
+                    continue
+                if mode == 'val':
+                    question["concat_passages"] = concat_passages
+                prepared = [{"question": question["question"], "context": concat_passage} for concat_passage in concat_passages]
+                prepared_dataset = ListDataset(prepared)
+                predicted = []
+                for batch in DataLoader(prepared_dataset, batch_size=30):
+                    predicted_batch = self.pipeline(batch)
+                    predicted.extend(predicted_batch)
+                ans_concat = []
+                for QA in predicted:
+                    ans_concat.append((QA["answer"], QA["score"])) 
+                if mode == "val":
+                    question["ans_concat"] = ans_concat
+                from collections import Counter
+                def most_frequent(List, k):
+                    occurence_count = Counter(List)
+                    return occurence_count.most_common(k)
+                final_ans_concat = []
+                for ans, score in ans_concat:
+                    ans = ans.translate(str.maketrans('','',string.punctuation))
+                    wiki_ans = select_nearest(ans, question['answer'])
+                    # final_ans_concat.append((wiki_ans, score))
+                    final_ans_concat.append((wiki_ans, score))
+                if mode == "val":
+                    question["answer_concat"] = final_ans_concat
+                record = {}
+                for final_ans, score in final_ans_concat:
+                    if final_ans not in record.keys():
+                        record[final_ans] = score
+                    else:
+                        record[final_ans] += score
+
+                # most_common = most_frequent(final_ans_concat, 5)
+                # print(most_common)
+                if mode == "val":
+                    # question["answer"] = [m[0] for m in most_common]
+                    # question['answer'] = [most_common[0][0]]
+                    question['answer'] = [max(record, key=record.get)]
+                else:
+                    # question["answer"] = most_common[0][0]
+                    question['answer'] = max(record, key=record.get)
+                    # End's huy code
+            # print('after'*20)
+            # print(question)
             if mode == "test":
-                if question['candidate_wikipages'] != []:
+                if 'candidate_wikipages' in question.keys():
                     question.pop('candidate_wikipages', None)
-
-        return data
+                if 'candidate_passages' in question.keys():
+                    question.pop('candidate_passages', None)
+                if 'scores' in question.keys():
+                    question.pop('scores', None)
+                if 'passage_scores' in question.keys():
+                    question.pop('passage_scores', None)
+                if 'ans_type' in question.keys():
+                    question.pop('ans_type', None)
+            emp['data'].append(question)
+        return emp
 
     def __call__(self, data, mode):
         return self.process(data, mode)
