@@ -297,7 +297,7 @@ class BM25PostProcessor(BasePostProcessor):
                 ids_sorted = sorted(range(len(question['scores'])),key=lambda x: question['scores'][x], reverse=True)
                 # print("before"*20)
                 # print(question)
-                denoisy = 1
+                denoisy = 2
                 # Huy's code
                 # print(question['answer'], question['scores'])
                 original_ans = [question["answer"][id] for id in ids_sorted]
