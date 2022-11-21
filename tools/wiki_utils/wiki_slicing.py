@@ -7,7 +7,7 @@ import re
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--data-path", type=str, default="datasets/wikipedia_zalo.jsonl")
+    parser.add_argument("--data-path", type=str, default="datasets/wikipedia.jsonl")
     parser.add_argument("--output-path", type=str, default="datasets/wikicorpus/wiki.jsonl")
     parser.add_argument("--test-mode", type=bool, default=False)
     return parser.parse_args()

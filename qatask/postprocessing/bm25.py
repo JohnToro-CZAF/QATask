@@ -193,7 +193,8 @@ class BM25PostProcessor(BasePostProcessor):
         'scores': [],
         'passage_scores': [],
         'candidate_passages': [],
-        'answer': []
+        'answer': [],
+        'candidate_wikipages': item['candidate_wikipages'],
       }
       answers_dict = {}
       for idx, ans in enumerate(item['answer']):
