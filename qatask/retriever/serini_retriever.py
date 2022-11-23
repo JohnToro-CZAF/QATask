@@ -10,6 +10,7 @@ from tqdm import tqdm
 import numpy as np
 from transformers import DPRContextEncoderTokenizer, DPRContextEncoder, DPRQuestionEncoderTokenizer, DPRQuestionEncoder
 from underthesea import word_tokenize
+from .utils import nlp_sieve_passages
 
 class ColbertRetriever(BaseRetriever):
     def __init__(self, index_path, top_k, db_path):
@@ -74,7 +75,7 @@ class DPRRetriever(ColbertRetriever):
                 ctx = res.fetchone()[0]
                 passage_vn = (doc_id, wikipage, score, ctx)
                 candidate_passages.append(passage_vn)
-                        
+                            
             question['candidate_passages'] = candidate_passages
         print("Retrieved passages.")
         return data

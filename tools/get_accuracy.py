@@ -141,11 +141,11 @@ def main(args):
     truth = truth[:len(pred)]
 
     # ans_acc = get_answer_accuracy(pred, truth)
-    # re_acc = get_retrieving_accuracy(pred, truth)
+    re_recall = get_retrieving_accuracy(pred, truth)
     # print(ans_acc)
     mul_ans = get_answer_accuracy_multiple(pred, truth)
     print(mul_ans)
-    # print(re_acc)
+    print(re_recall)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

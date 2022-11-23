@@ -47,13 +47,14 @@ class BertReader(BaseReader):
         self.pipeline = pipeline('question-answering', 
                                  model=self.cfg.model_checkpoint, 
                                  tokenizer=self.cfg.model_checkpoint, 
-                                 device="cuda:0", 
+                                #  device="cuda:0", 
                                  batch_size=self.cfg.batch_size)
     def clean_ctx(self, ctx):
       pattern = re.compile(r'\(|\)|\[|\]|\"|\'|\{|\}|\?|\!|\;|\=|\+|\*|\%|\$|\#|\@|\^|\&|\~|\`|\|')
       ctx = pattern.sub('', ctx)
       ctx = ctx.replace('_', ' ')
-      ctx = ctx.replace("-", " đến ")
+      #TODO: Instead of removing '-' solely just to solve the date problem then no need we have to consider other cases that need that '-' to be stayed. E.g wiki/Lockheed_SR-71_Blackbird
+      # ctx = ctx.replace("-", " đến ")
       ctx = ctx.replace(":", " là ")
       ctx = ctx.replace("=", " bằng ")
       ctx = ctx.replace("\/", " ")
