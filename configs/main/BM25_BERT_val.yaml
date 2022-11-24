@@ -17,11 +17,11 @@ reader:
   logpth: "logs/"
 retriever:
   type: bm25
-  top_k: 40
+  top_k: 70
   index_path: checkpoint/indexes/BM25
 postprocessor:
   type: bm25
-  top_k: 200
+  top_k: 500
   # database_path: qatask/database/wikipedia_db/wikisqlite_final1.db # Might have to change to original db wikisqlite.db since the new one seems to produce many duplicated pages
   database_path: qatask/database/wikipedia_db/wikisqlite_post.db 
   index_path: checkpoint/indexes/BM25_post
