@@ -51,7 +51,7 @@ class BertReader(BaseReader):
                                  batch_size=self.cfg.batch_size)
         # This number has to be smaller or equal to the self.top_k at retriever
         # Experiments has shown that if sieve_threshold < self.top_k did not bring any improvement results
-        self.sieve_threshold = 30
+        self.sieve_threshold = 50
     def clean_ctx(self, ctx):
       pattern = re.compile(r'\(|\)|\[|\]|\"|\'|\{|\}|\?|\!|\;|\=|\+|\*|\%|\$|\#|\@|\^|\&|\~|\`|\|')
       ctx = pattern.sub('', ctx)

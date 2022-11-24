@@ -35,7 +35,8 @@ def most_frequent(List, k):
 class BM25PostProcessor(BasePostProcessor):
     def __init__(self, cfg=None, db_path=None):
         super().__init__(cfg, db_path)
-        self.denoisy = 4
+        self.denoisy = 6
+        self.concat_threshold = 0.15
         self.searcher = LuceneSearcher(cfg.index_path)
         self.searcher.set_language('vn')
         self.cfg = cfg
@@ -50,7 +51,7 @@ class BM25PostProcessor(BasePostProcessor):
         self.linker_tokenizer = AutoTokenizer.from_pretrained("facebook/mgenre-wiki")
         self.linker_model = AutoModelForSeq2SeqLM.from_pretrained("facebook/mgenre-wiki").eval().to('cuda:0')
 
-    def save_question(self, question, mode):             
+    def save_question(self, question, mode):
         if mode == "test":
             if 'candidate_wikipages' in question.keys():
                 question.pop('candidate_wikipages', None)
@@ -108,8 +109,8 @@ class BM25PostProcessor(BasePostProcessor):
         # Return to fine grained wikipage
         output = self.linker_model.generate(
             **self.linker_tokenizer(formated_ctx, return_tensors="pt").to('cuda:0'),
-            num_beams=1,
-            num_return_sequences=1,
+            num_beams=5,
+            num_return_sequences=5,
             max_length = 200
         )
         # print(reader_answer, output)
@@ -195,7 +196,7 @@ class BM25PostProcessor(BasePostProcessor):
                 unique_candidates = {}
                 best_scores = 0
                 for idx, wikipage in enumerate(question['answer']):
-                    if wikipage not in unique_candidates.keys() and (abs(question['scores'][idx] - best_scores) < 0.1 or best_scores == 0):
+                    if wikipage not in unique_candidates.keys() and (abs(question['scores'][idx] - best_scores) < self.concat_threshold or best_scores == 0):
                         best_scores = question['scores'][idx]
                         unique_candidates[wikipage] = idx
                 import itertools
