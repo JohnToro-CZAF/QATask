@@ -1,0 +1,15 @@
+artifact_uri: file:///home/ubuntu/20huy.pn/QATask/notebooks/mlruns/0/d982bb2d79c3472ab0f83ce9196f8bf2/artifacts
+end_time: null
+entry_point_name: ''
+experiment_id: '0'
+lifecycle_stage: active
+name: ''
+run_id: d982bb2d79c3472ab0f83ce9196f8bf2
+run_uuid: d982bb2d79c3472ab0f83ce9196f8bf2
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1668809205121
+status: 1
+tags: []
+user_id: ubuntu

@@ -8,7 +8,7 @@ from tokenizers import BertWordPieceTokenizer
 from transformers import XLMRobertaTokenizer, XLMRobertaForQuestionAnswering
 
 import torch
-import torch.utils.data import DataLoader, RandomSampler, SequentialSampler
+from torch.utils.data import DataLoader, RandomSampler, SequentialSampler
 
 gpu = torch.device('cuda')
 # ======================= Downloading data =====================
