@@ -22,7 +22,7 @@ def checktype(text, question):
     text = text.lower().translate(str.maketrans('','',string.punctuation))
     words = text.split()
     """Check if the text is a date or a number."""
-    time_indicators = ["năm nào", "năm mấy", "năm bao nhiêu", "ngày bao nhiêu", "ngày tháng năm nào", "thời điểm nào", "ngày tháng âm lịch nào hằng năm", "thời gian nào", "lúc nào", "giai đoạn nào trong năm"]
+    time_indicators = ["năm nào", "năm mấy", "năm bao nhiêu", "ngày bao nhiêu", "ngày tháng năm nào", "thời điểm nào", "ngày tháng âm lịch nào hằng năm", "thời gian nào", "lúc nào", "giai đoạn nào trong năm", "thời điểm", "Thời điểm"]
     if any(idc in question.lower() for idc in time_indicators):
         return 2
     if "có bao nhiêu" in question:
@@ -47,8 +47,11 @@ class BertReader(BaseReader):
         self.pipeline = pipeline('question-answering', 
                                  model=self.cfg.model_checkpoint, 
                                  tokenizer=self.cfg.model_checkpoint, 
-                                #  device="cuda:0", 
+                                 device="cuda:0", 
                                  batch_size=self.cfg.batch_size)
+        # This number has to be smaller or equal to the self.top_k at retriever
+        # Experiments has shown that if sieve_threshold < self.top_k did not bring any improvement results
+        self.sieve_threshold = 30
     def clean_ctx(self, ctx):
       pattern = re.compile(r'\(|\)|\[|\]|\"|\'|\{|\}|\?|\!|\;|\=|\+|\*|\%|\$|\#|\@|\^|\&|\~|\`|\|')
       ctx = pattern.sub('', ctx)
@@ -71,13 +74,6 @@ class BertReader(BaseReader):
             ctxs = item['contexts']
             for context in ctxs:
                 res.append({'question': item['question'], 'context': self.clean_ctx(context)})
-            # for i in range(len(ctxs)):
-            #   for j in range(i+1, len(ctxs), 1):
-            #     for k in range(j+1, len(ctxs), 1):
-            #       res.append({'question': item['question'], 'context': ctxs[i] + ". " + ctxs[j] + ". " + ctxs[k]})
-            # Notice that, this is only allowed when len(ctxs) is divisible by 3 (change in main config)
-            # for i in range(0, len(ctxs), 2):
-            #   res.append({'question': item['question'], 'context': ctxs[i] + ". " + ctxs[i+1]})
         return res
 
     def postprocess(self, prepared, predicted):
@@ -87,9 +83,7 @@ class BertReader(BaseReader):
               'starts':[], 
               'end':[], 
               'answers':[]}
-      #WorkAORUND
       prepared.append({'question': 'dummy', 'context': 'dummy'})
-
       for idx, QA in enumerate(predicted):
         question = prepared[idx]['question']
         QAans['question'] = question
@@ -161,7 +155,6 @@ class BertReader(BaseReader):
       with open('logs/voting.json', 'a') as f:
         json.dump(res_item, f, ensure_ascii=False, indent=4)
         f.write('\n')
-      # print(res_item)
       return res_item
 
     def getbestans(self, item):
@@ -178,6 +171,25 @@ class BertReader(BaseReader):
       else:
         return answer
   
+    def format_passage(self, ctx, start, end):
+      """
+        Arguments:
+          ctx:   an original contex
+          start: predicted answer start position by reader (classifier)
+          end:   predicted answer end position by reader or classifier (reranker)
+        Return:
+          formated_ctx: A context with [START] and [END] tokens wrapping surround the answer
+          in order to the linker can link predicted answer to known wikipedia entity.
+      """
+      return ctx[:start] + '[START] ' + ctx[start: end] + ' [END]' + ctx[end:]
+
+    def index_order_scores(self, item):
+      ids_sorted = sorted(range(len(item['scores'])),key=lambda x: item['scores'][x] + item['passage_scores'][x], reverse=True)
+      return ids_sorted
+
+    def sieve_by_scores(self, item, ids_scores):
+      item = [item[id] for id in ids_scores][:self.sieve_threshold]
+      return item
 
     def __call__(self, data):
       """
@@ -194,16 +206,7 @@ class BertReader(BaseReader):
         question = item['question']
         passage_scores = [passage[2] for passage in item['candidate_passages']]
         contexts = [passage[3] for passage in item['candidate_passages']]
-
         augmented_passage_scores = passage_scores.copy()
-        # augmented_passage_scores = []
-        # for i in range(len(contexts)):
-        #   for j in range(i+1, len(contexts), 1):
-        #     for k in range(j+1, len(contexts), 1):
-        #       augmented_passage_scores.append((passage_scores[i] + passage_scores[j] + passage_scores[k])/3)
-        # for i in range(0, len(contexts), 2):
-        #   augmented_passage_scores.append((passage_scores[i] + passage_scores[i+1])/2)
-
         data_passage_scores.append(augmented_passage_scores)
         _data.append({'question': question, 'contexts': contexts})
 
@@ -234,14 +237,20 @@ class BertReader(BaseReader):
                                         'candidate_passages': [passage[3] for passage in data[idx]['candidate_passages']],
                                         'ans_type': ans_type})   
           else:
+            # Sieving underperformance answer here by sorting by scores 
+            # TODO: We can retrieve many candidates here (to improve the recall of retriever)
+            # Then using some lightweight classifier to reorder the scores (BERT_ranking) or the same as 
+            # we currentlt use: using BERT to answer then sort by scores.
+            ids_order = self.index_order_scores(item)
             saved_format['data'].append({'id':'testa_{}'.format(idx+1),
                                         'question':item['question'],
                                         # 'answer': bestans,
-                                        'answer': item['answers'],
-                                        'scores': item['scores'],
-                                        'passage_scores': item['passage_scores'],
-                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']],
-                                        'candidate_passages': [passage[3] for passage in data[idx]['candidate_passages']],
+                                        'answer': self.sieve_by_scores(item['answers'], ids_scores=ids_order),
+                                        'scores': self.sieve_by_scores(item['scores'], ids_scores=ids_order),
+                                        'passage_scores': self.sieve_by_scores(item['passage_scores'], ids_scores=ids_order),
+                                        'candidate_wikipages': self.sieve_by_scores([passage[1] for passage in data[idx]['candidate_passages']], ids_scores=ids_order),
+                                        'candidate_passages': self.sieve_by_scores([passage[3] for passage in data[idx]['candidate_passages']], ids_scores=ids_order),
+                                        'formated_passages': self.sieve_by_scores([self.format_passage(passage[3], item['starts'][stt], item['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])], ids_scores=ids_order),
                                         'ans_type': ans_type})
           if getattr(self.cfg, 'logpth') is not None:
             saved_logs['data'].append({'id':'testa_{}'.format(idx+1),
@@ -253,15 +262,3 @@ class BertReader(BaseReader):
         self.logging(saved_logs)
       print("reading done")
       return saved_format
-    
-if __name__ == "__main__":
-    class Config:
-        def __init__(self) -> None:
-            self.model_checkpoint = "nguyenvulebinh/vi-mrc-large"
-            self.batch_size = 8
-    
-    config = Config()
-    reader = BertReader(config, None, "qatask/database/wikipedia_db/wikisqlite.db")
-    data = [{'question': 'Ai là đạo diễn phim Titanic', 'candidate_passages': [(1, None)]},{'question': 'Ai là đạo diễn phim Titanic', 'candidate_passages': [(1, None)]},{'question': 'Ai là đạo diễn phim Titanic', 'candidate_passages': [(1, None)]},{'question': 'Titanic là thuyền gì?', 'candidate_passages': [(1, None)]}, {'question': 'Titanic là thuyền gì?', 'candidate_passages': [(1, None)]}, {'question': 'James Cameron là ai?', 'candidate_passages': [(1, None)]}]
-    answer = reader(data)
-    print(answer)

@@ -9,7 +9,7 @@ from fuzzywuzzy import process
 import string
 import nltk
 from collections import Counter
-from transformers import pipeline
+from transformers import pipeline, AutoTokenizer, AutoModelForSeq2SeqLM
 import itertools
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
@@ -35,7 +35,7 @@ def most_frequent(List, k):
 class BM25PostProcessor(BasePostProcessor):
     def __init__(self, cfg=None, db_path=None):
         super().__init__(cfg, db_path)
-        self.denoisy = 5
+        self.denoisy = 4
         self.searcher = LuceneSearcher(cfg.index_path)
         self.searcher.set_language('vn')
         self.cfg = cfg
@@ -43,10 +43,12 @@ class BM25PostProcessor(BasePostProcessor):
         self.top_k = cfg.top_k
         con = sqlite3.connect(osp.join(os.getcwd(), db_path))
         self.cur = con.cursor()
-        # self.pipeline = pipeline('question-answering', 
-        #                         # device="cuda:0",
-        #                         model='checkpoint/pretrained_model/checkpoint-3906',
-        #                         tokenizer='checkpoint/pretrained_model/checkpoint-3906')
+        self.pipeline = pipeline('question-answering', 
+                                device="cuda:0",
+                                model='nguyenvulebinh/vi-mrc-large',
+                                tokenizer='nguyenvulebinh/vi-mrc-large')
+        self.linker_tokenizer = AutoTokenizer.from_pretrained("facebook/mgenre-wiki")
+        self.linker_model = AutoModelForSeq2SeqLM.from_pretrained("facebook/mgenre-wiki").eval().to('cuda:0')
 
     def save_question(self, question, mode):             
         if mode == "test":
@@ -102,6 +104,18 @@ class BM25PostProcessor(BasePostProcessor):
             macthed_list.append(wikipage[0])
         return macthed_list
 
+    def linking_to_wiki(self, reader_answer, formated_ctx):
+        # Return to fine grained wikipage
+        output = self.linker_model.generate(
+            **self.linker_tokenizer(formated_ctx, return_tensors="pt").to('cuda:0'),
+            num_beams=1,
+            num_return_sequences=1,
+            max_length = 200
+        )
+        # print(reader_answer, output)
+        fine_grained_ans = self.linker_tokenizer.batch_decode(output, skip_special_tokens=True)[0][:-5]
+        return fine_grained_ans.strip()
+        
     def process(self, data, mode):
         print("Postprocessing...")
         emp = {'data': []}
@@ -118,7 +132,7 @@ class BM25PostProcessor(BasePostProcessor):
                         question['answer'] = post_ans.strip()
                 elif anstype == 1:
                     post_ans = ""
-                    for d in reader_ans.lower().translate(str.maketrans('','',string.punctuation)).split():
+                    for d in question['answer'].lower().translate(str.maketrans('','',string.punctuation)).split():
                         if d.isnumeric():
                             post_ans = d
                     if mode == "val":
@@ -137,10 +151,12 @@ class BM25PostProcessor(BasePostProcessor):
                     # Extends current retrieved wikipages by new matched wiki entities, searched by reader_ans
                     candidate_wikipages = question['candidate_wikipages'].copy() + self.find_matched_wikipage(reader_ans)
                     choices = ["",] + [wikipage[5:].replace("_", " ") for wikipage in candidate_wikipages] # if we can not match by process extract -> default is an empty string
+                    # TODO: New neural mode. Using fuzzy wuzzy does not solve the entity linking problem
                     if reader_ans in choices:
                         wiki_with_space = reader_ans
                     else:
-                        wiki_with_space = process.extractOne(reader_ans, choices)[0]
+                        wiki_with_space = self.linking_to_wiki(reader_ans, question['question'] + ' ' + question['formated_passages'][idx])
+                        wiki_with_space = process.extractOne(wiki_with_space, choices)[0]
                     if wiki_with_space == "":
                         matched_wikipage = None
                         question['scores'][idx] = question['passage_scores'][idx] = 0
@@ -161,24 +177,26 @@ class BM25PostProcessor(BasePostProcessor):
                 ids_sorted = sorted(range(len(question['scores'])),key=lambda x: question['scores'][x], reverse=True)
                 
                 # question['pos_answer'] = [question['answer'][id] for id in ids_sorted][:self.denoisy]
-                question['answer'] = [question['answer'][id] for id in ids_sorted][:1]
+                question['answer'] = [question['answer'][id] for id in ids_sorted][:self.denoisy]
                 question['candidate_passages'] = [question['candidate_passages'][id] for id in ids_sorted][:self.denoisy]
                 
                 # For easy reading json logs
                 question['scores'] = [question['scores'][id] for id in ids_sorted][:self.denoisy]
                 question['passage_scores'] = [question['passage_scores'][id] for id in ids_sorted][:self.denoisy]
 
-                # if mode == "val":
-                # question['original_answers'] = tmp_reader_ans # debugging purpose
-                # question['according_wikipages'] = matched_wiki_answers # debugging purpose
+                if mode == "val":
+                    question['original_answers'] = tmp_reader_ans # debugging purpose
+                    question['according_wikipages'] = matched_wiki_answers # debugging purpose
 
                 # 1 line below is for baseline
-                emp['data'].append(self.save_question(question, mode))
-                continue
+                # emp['data'].append(self.save_question(question, mode))
+                # continue
 
                 unique_candidates = {}
+                best_scores = 0
                 for idx, wikipage in enumerate(question['answer']):
-                    if wikipage not in unique_candidates.keys():
+                    if wikipage not in unique_candidates.keys() and (abs(question['scores'][idx] - best_scores) < 0.1 or best_scores == 0):
+                        best_scores = question['scores'][idx]
                         unique_candidates[wikipage] = idx
                 import itertools
                 tuple_candidates = list(itertools.combinations(unique_candidates.keys(), 2))
@@ -196,11 +214,12 @@ class BM25PostProcessor(BasePostProcessor):
                         question['answer'] = [question['answer'][0]]
                     else:
                         question['answer'] = question['answer'][0]
-                        question['answer'] = self.save_question(question['answer'], mode)
-                    emp['data'].append(question)
+                    emp['data'].append(self.save_question(question, mode))
                     continue
+                
                 if mode == 'val':
                     question["concat_passages"] = concat_passages
+
                 prepared = [{"question": question["question"], "context": concat_passage} for concat_passage in concat_passages]
                 prepared_dataset = ListDataset(prepared)
                 predicted = []
@@ -231,9 +250,12 @@ class BM25PostProcessor(BasePostProcessor):
                         record[matched_wiki_answers] = score
                     else:
                         record[matched_wiki_answers] += score
+                
+                if mode == "val":
+                    question['answer'] = [max(record, key=record.get)]
+                else:
+                    question['answer'] = max(record, key=record.get)
 
-                question['answer'] = [max(record, key=record.get)]
-            
             emp['data'].append(self.save_question(question, mode))
         return emp
 
