@@ -14,6 +14,7 @@ import itertools
 from torch.utils.data import DataLoader, Dataset
 import numpy as np
 import string
+import itertools
 
 from .post_utils import handleReaderAns,  matching, matching_nospace, select_nearest, select_nearsest_shortest_withspace, checktype, date_transform
 
@@ -35,23 +36,29 @@ def most_frequent(List, k):
 class BM25PostProcessor(BasePostProcessor):
     def __init__(self, cfg=None, db_path=None):
         super().__init__(cfg, db_path)
-        self.denoisy = 6
-        self.concat_threshold = 0.15
+        self.cfg = cfg
+        self.concat_threshold = self.cfg.concat_threshold
+        self.denoisy = self.cfg.denoisy
+        self.top_k = cfg.top_k
+        
         self.searcher = LuceneSearcher(cfg.index_path)
         self.searcher.set_language('vn')
-        self.cfg = cfg
         self.docdb = DocDB(db_path)
-        self.top_k = cfg.top_k
         con = sqlite3.connect(osp.join(os.getcwd(), db_path))
         self.cur = con.cursor()
+        self.pipeline2 = pipeline('question-answering',
+                            model="hogger32/xlmRoberta-for-VietnameseQA",
+                            tokenizer="hogger32/xlmRoberta-for-VietnameseQA",
+                            device="cuda:0")
         self.pipeline = pipeline('question-answering', 
                                 device="cuda:0",
                                 model='nguyenvulebinh/vi-mrc-large',
                                 tokenizer='nguyenvulebinh/vi-mrc-large')
+        
         self.linker_tokenizer = AutoTokenizer.from_pretrained("facebook/mgenre-wiki")
         self.linker_model = AutoModelForSeq2SeqLM.from_pretrained("facebook/mgenre-wiki").eval().to('cuda:0')
 
-    def save_question(self, question, mode):
+    def save_question(self, question, mode):             
         if mode == "test":
             if 'candidate_wikipages' in question.keys():
                 question.pop('candidate_wikipages', None)
@@ -80,6 +87,8 @@ class BM25PostProcessor(BasePostProcessor):
       answers_dict = {}
       for idx, ans in enumerate(item['answer']):
         if ans in answers_dict.keys():
+            # Heuristic by combining scores seems ineffective ->
+            # answers_dict[ans]['scores'] = max(item['scores'][idx], answers_dict[ans]['scores'])
             answers_dict[ans]['scores'] += item['scores'][idx]
         else:
           answers_dict[ans] = {
@@ -109,61 +118,129 @@ class BM25PostProcessor(BasePostProcessor):
         # Return to fine grained wikipage
         output = self.linker_model.generate(
             **self.linker_tokenizer(formated_ctx, return_tensors="pt").to('cuda:0'),
-            num_beams=5,
-            num_return_sequences=5,
+            num_beams=1,
+            num_return_sequences=1,
             max_length = 200
         )
-        # print(reader_answer, output)
         fine_grained_ans = self.linker_tokenizer.batch_decode(output, skip_special_tokens=True)[0][:-5]
         return fine_grained_ans.strip()
+    
+    def process_ans_type(self, question, mode):
+        anstype = question['ans_type']  
+        if anstype == 3:
+            question['answer'] = None
+        elif anstype == 2:
+            post_ans = date_transform(question['answer'], question['question'])
+            if mode == "val":
+                question['answer'] = [post_ans]
+            else:
+                question['answer'] = post_ans.strip()
+        elif anstype == 1:
+            post_ans = ""
+            for d in question['answer'].lower().translate(str.maketrans('','',string.punctuation)).split():
+                if d.isnumeric():
+                    post_ans = d
+            if mode == "val":
+                question['answer'] = [post_ans.strip()]
+            else:
+                question['answer'] = post_ans.strip()
+        return question
+    
+    def find_wikipage(self, question):
+        matched_wiki_answers = []
+        tmp_reader_ans = [] # Debuging purpose
+        for idx, reader_ans in enumerate(question['answer']):
+            # TODO: Handle reader_ans is None type
+            reader_ans = handleReaderAns(reader_ans, question['question'])
+
+            tmp_reader_ans.append(reader_ans) # debugging purpose
+            # Extends current retrieved wikipages by new matched wiki entities, searched by reader_ans
+            candidate_wikipages = question['candidate_wikipages'].copy() + self.find_matched_wikipage(reader_ans)
+            choices = ["",] + [wikipage[5:].replace("_", " ") for wikipage in candidate_wikipages] # if we can not match by process extract -> default is an empty string
+            # TODO: New neural mode. Using fuzzy wuzzy does not solve the entity linking problem
+            if reader_ans in choices:
+                wiki_with_space = reader_ans
+            else:
+                wiki_with_space = self.linking_to_wiki(reader_ans, question['question'] + ' ' + question['formated_passages'][idx])
+                wiki_with_space = process.extractOne(wiki_with_space, choices)[0]
+
+            if wiki_with_space == "":
+                matched_wikipage = None
+                question['scores'][idx] = question['passage_scores'][idx] = 0
+            else:
+                matched_wikipage = 'wiki/' + wiki_with_space.replace(" ", "_")
+
+            matched_wiki_answers.append(matched_wikipage)
+        return question, matched_wiki_answers, tmp_reader_ans
+    
+    def reading_concat(self, question, concat_passages, mode):
+        print("Have to re read", len(concat_passages))
+        prepared = [{"question": question["question"], "context": concat_passage} for concat_passage in concat_passages]
+        prepared_dataset = ListDataset(prepared)
+        predicted = []
+        for batch in DataLoader(prepared_dataset, batch_size=30):
+            predicted_batch = self.pipeline(batch)
+            predicted.extend(predicted_batch)
+        ans_concat = []
+        for QA in predicted:
+            ans_concat.append((QA["answer"], QA["score"]))
+        predicted = []
+        for batch in DataLoader(prepared_dataset, batch_size=30):
+            predicted_batch = self.pipeline2(batch)
+            predicted.extend(predicted_batch)
+        for QA in predicted:
+            ans_concat.append((QA["answer"], QA["score"]))
+        if mode == "val":
+            question["ans_concat"] = ans_concat
+        final_ans_concat = []
+        for ans, score in ans_concat:
+            ans = ans.translate(str.maketrans('','',string.punctuation))
+            wiki_ans = select_nearest(ans, question['answer'])
+            final_ans_concat.append((wiki_ans, score))
+
+        if mode == "val":
+            question["answer_concat"] = final_ans_concat
+            question["concat_passages"] = concat_passages
+    
+        record = {}
+        for matched_wiki_answers, score in final_ans_concat:
+            if matched_wiki_answers not in record.keys():
+                record[matched_wiki_answers] = score
+            else:
+                record[matched_wiki_answers] += score
+        if mode == "val":
+            question['answer'] = [max(record, key=record.get)]
+        else:
+            question['answer'] = max(record, key=record.get)
+        
+        return question
+
+    def building_concat_passages(self, question):
+        unique_candidates = {}
+        best_scores = 0
+        for idx, wikipage in enumerate(question['answer']):
+            if wikipage not in unique_candidates.keys() and (abs(question['scores'][idx] - best_scores) < self.concat_threshold or best_scores == 0):
+                best_scores = question['scores'][idx]
+                unique_candidates[wikipage] = idx
+        tuple_candidates = list(itertools.combinations(unique_candidates.keys(), 2))
+        concat_passages = []
+        for x,y in tuple_candidates:
+            passage1 = question["candidate_passages"][unique_candidates[x]]
+            passage2 = question["candidate_passages"][unique_candidates[y]]
+            concat_passage = passage1 + ". " + passage2
+            concat_passage_reverse = passage2 + ". " + passage1
+            concat_passages.append(concat_passage)
+            concat_passages.append(concat_passage_reverse)
+        return tuple_candidates, concat_passages
         
     def process(self, data, mode):
         print("Postprocessing...")
         emp = {'data': []}
         for question in tqdm(data["data"]):
             if question['ans_type'] > 0:
-                anstype = question['ans_type']  
-                if anstype == 3:
-                    question['answer'] = None
-                elif anstype == 2:
-                    post_ans = date_transform(question['answer'], question['question'])
-                    if mode == "val":
-                        question['answer'] = [post_ans]
-                    else:
-                        question['answer'] = post_ans.strip()
-                elif anstype == 1:
-                    post_ans = ""
-                    for d in question['answer'].lower().translate(str.maketrans('','',string.punctuation)).split():
-                        if d.isnumeric():
-                            post_ans = d
-                    if mode == "val":
-                        question['answer'] = [post_ans.strip()]
-                    else:
-                        question['answer'] = post_ans.strip()
+                question = self.process_ans_type(question, mode)
             else:
-                matched_wiki_answers = []
-                tmp_reader_ans = [] # Debuging purpose
-                for idx, reader_ans in enumerate(question['answer']):
-                    post_ans = None
-                    # TODO: Handle reader_ans is None type
-                    reader_ans = handleReaderAns(reader_ans, question['question'])
-
-                    tmp_reader_ans.append(reader_ans) # debugging purpose
-                    # Extends current retrieved wikipages by new matched wiki entities, searched by reader_ans
-                    candidate_wikipages = question['candidate_wikipages'].copy() + self.find_matched_wikipage(reader_ans)
-                    choices = ["",] + [wikipage[5:].replace("_", " ") for wikipage in candidate_wikipages] # if we can not match by process extract -> default is an empty string
-                    # TODO: New neural mode. Using fuzzy wuzzy does not solve the entity linking problem
-                    if reader_ans in choices:
-                        wiki_with_space = reader_ans
-                    else:
-                        wiki_with_space = self.linking_to_wiki(reader_ans, question['question'] + ' ' + question['formated_passages'][idx])
-                        wiki_with_space = process.extractOne(wiki_with_space, choices)[0]
-                    if wiki_with_space == "":
-                        matched_wikipage = None
-                        question['scores'][idx] = question['passage_scores'][idx] = 0
-                    else:
-                        matched_wikipage = 'wiki/' + wiki_with_space.replace(" ", "_")
-                    matched_wiki_answers.append(matched_wikipage)
+                question, matched_wiki_answers, tmp_reader_ans = self.find_wikipage(question)
 
                 # Sort answers, canidate passaegs by scores -> TODO: Shorter implementation lambda function in separated function
                 ids_sorted = sorted(range(len(question['scores'])),key=lambda x: question['scores'][x] + question['passage_scores'][x], reverse=True)
@@ -171,12 +248,12 @@ class BM25PostProcessor(BasePostProcessor):
                 question['candidate_passages'] = [question['candidate_passages'][id] for id in ids_sorted]
                 question['scores'] = [question['scores'][id] for id in ids_sorted]
                 question['passage_scores'] = [question['passage_scores'][id] for id in ids_sorted]
-                # Removing dupplicated answers and mergin their scores, notice "" is not a valid answer
+
+                # Removing dupplicated answers and merging their scores, notice "" is not a valid answer
                 cp_qs = question.copy()
                 question = self.merge(cp_qs)
                 
                 ids_sorted = sorted(range(len(question['scores'])),key=lambda x: question['scores'][x], reverse=True)
-                
                 # question['pos_answer'] = [question['answer'][id] for id in ids_sorted][:self.denoisy]
                 question['answer'] = [question['answer'][id] for id in ids_sorted][:self.denoisy]
                 question['candidate_passages'] = [question['candidate_passages'][id] for id in ids_sorted][:self.denoisy]
@@ -186,30 +263,13 @@ class BM25PostProcessor(BasePostProcessor):
                 question['passage_scores'] = [question['passage_scores'][id] for id in ids_sorted][:self.denoisy]
 
                 if mode == "val":
-                    question['original_answers'] = tmp_reader_ans # debugging purpose
-                    question['according_wikipages'] = matched_wiki_answers # debugging purpose
+                    question['original_answers'] = [tmp_reader_ans[id] for id in ids_sorted] # debugging purpose
+                    question['according_wikipages'] = [matched_wiki_answers[id] for id in ids_sorted] # debugging purpose
 
                 # 1 line below is for baseline
                 # emp['data'].append(self.save_question(question, mode))
                 # continue
-
-                unique_candidates = {}
-                best_scores = 0
-                for idx, wikipage in enumerate(question['answer']):
-                    if wikipage not in unique_candidates.keys() and (abs(question['scores'][idx] - best_scores) < self.concat_threshold or best_scores == 0):
-                        best_scores = question['scores'][idx]
-                        unique_candidates[wikipage] = idx
-                import itertools
-                tuple_candidates = list(itertools.combinations(unique_candidates.keys(), 2))
-                concat_passages = []
-                for x,y in tuple_candidates:
-                    passage1 = question["candidate_passages"][unique_candidates[x]]
-                    passage2 = question["candidate_passages"][unique_candidates[y]]
-                    concat_passage = passage1 + ". " + passage2
-                    concat_passage_reverse = passage2 + ". " + passage1
-                    concat_passages.append(concat_passage)
-                    concat_passages.append(concat_passage_reverse)
-                
+                tuple_candidates, concat_passages = self.building_concat_passages(question)
                 if len(tuple_candidates) == 0:
                     if mode == "val":
                         question['answer'] = [question['answer'][0]]
@@ -217,45 +277,7 @@ class BM25PostProcessor(BasePostProcessor):
                         question['answer'] = question['answer'][0]
                     emp['data'].append(self.save_question(question, mode))
                     continue
-                
-                if mode == 'val':
-                    question["concat_passages"] = concat_passages
-
-                prepared = [{"question": question["question"], "context": concat_passage} for concat_passage in concat_passages]
-                prepared_dataset = ListDataset(prepared)
-                predicted = []
-                for batch in DataLoader(prepared_dataset, batch_size=30):
-                    predicted_batch = self.pipeline(batch)
-                    predicted.extend(predicted_batch)
-                ans_concat = []
-                for QA in predicted:
-                    ans_concat.append((QA["answer"], QA["score"])) 
-                if mode == "val":
-                    question["ans_concat"] = ans_concat
-                from collections import Counter
-                def most_frequent(List, k):
-                    occurence_count = Counter(List)
-                    return occurence_count.most_common(k)
-                final_ans_concat = []
-                for ans, score in ans_concat:
-                    ans = ans.translate(str.maketrans('','',string.punctuation))
-                    wiki_ans = select_nearest(ans, question['answer'])
-                    final_ans_concat.append((wiki_ans, score))
-
-                if mode == "val":
-                    question["answer_concat"] = final_ans_concat
-                
-                record = {}
-                for matched_wiki_answers, score in final_ans_concat:
-                    if matched_wiki_answers not in record.keys():
-                        record[matched_wiki_answers] = score
-                    else:
-                        record[matched_wiki_answers] += score
-                
-                if mode == "val":
-                    question['answer'] = [max(record, key=record.get)]
-                else:
-                    question['answer'] = max(record, key=record.get)
+                question = self.reading_concat(question, concat_passages, mode)
 
             emp['data'].append(self.save_question(question, mode))
         return emp

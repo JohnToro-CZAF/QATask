@@ -79,15 +79,15 @@ def handle_file(file_path):
                 "answer_start_idx": len("{} {}".format(prev_context, answer).strip()) - len(answer),
             })
 
-        elif item['category'] == 'FALSE_LONG_ANSWER':
-            context  = ' '.join(word_tokenize(raw_context))
-            question = ' '.join(word_tokenize(raw_question))
-            norm_samples.append({
-                "context": context,
-                "question": question,
-                "answer_text": '',
-                "answer_start_idx": 0,
-            })
+        # elif item['category'] == 'FALSE_LONG_ANSWER':
+        #     context  = ' '.join(word_tokenize(raw_context))
+        #     question = ' '.join(word_tokenize(raw_question))
+        #     norm_samples.append({
+        #         "context": context,
+        #         "question": question,
+        #         "answer_text": '',
+        #         "answer_start_idx": 0,
+        #     })
 
     print(f"Parsing completed!")
     return norm_samples
@@ -97,7 +97,7 @@ def preprocess(cfg):
     dict_data_squad = handle_file(cfg.data_path)
     with open(cfg.mrc_path, 'w', encoding='utf-8') as file:
         for item in dict_data_squad:
-            file.write("{}\n".format(json.dumps(item, ensure_ascii=True)))
+            file.write("{}\n".format(json.dumps(item, ensure_ascii=False)))
     print("Total: {} samples".format(len(dict_data_squad)))
 
 
@@ -105,8 +105,8 @@ if __name__ == "__main__":
     # debugging purpose
     class Config:
         def __init__(self) -> None:
-            self.data_path = os.path.join(os.getcwd(), 'qatask/database/datasets/train_test_files/train_sample.json')
-            self.mrc_path = os.path.join(os.getcwd(), 'qatask/database/datasets/data_for_finetuning/mrc_format_file.jsonl')
+            self.data_path = os.path.join(os.getcwd(), 'datasets/train_test_files/train_sample.json')
+            self.mrc_path  = os.path.join(os.getcwd(), 'datasets/data_for_finetuning/mrc_format_file.jsonl')
     
     config = Config()
     preprocess(config)

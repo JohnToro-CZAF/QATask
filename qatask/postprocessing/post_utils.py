@@ -43,6 +43,8 @@ def select_nearest(short_form: str, wikipages):
     id = 0
     lst = 0
     for idx, wiki in enumerate(wikipages):
+        if wiki is None:
+            continue
         if matching(short_form, wiki) > lst:
             id = idx
             lst = matching(short_form, wiki)
