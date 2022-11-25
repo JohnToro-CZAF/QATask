@@ -7,7 +7,7 @@ from torch import nn
 import evaluate
 import numpy as np
 from torch.optim import AdamW
-from tqdm.auto import tqdm
+from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader
 
