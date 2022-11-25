@@ -1,5 +1,5 @@
 import argparse
-from ..utils import compute_metrics_phobart
+from tools.finetune_reader.utils import compute_metrics_phobart
 from datasets import load_dataset
 from transformers import PreTrainedTokenizerFast
 from transformers import AutoModelForQuestionAnswering, default_data_collator, get_scheduler
@@ -217,7 +217,7 @@ if __name__ == "__main__":
     parser.add_argument('-scheduler', type=str, default="linear")
     parser.add_argument('-pretrained_model', type=str, default="vinai/bartpho-syllable")
 
-    parser.add_argument('-batch_size', type=int, default=2)
+    parser.add_argument('-batch_size', type=int, default=4)
     parser.add_argument('-epochs', type=int, default=15)
     parser.add_argument('-lr', type=int, default=2e-5)
 

@@ -2,7 +2,7 @@ from transformers import Trainer, TrainingArguments, AutoTokenizer
 
 from data_preprocess import preprocess
 from train_valid_split import data_split
-from utils import prepare_data, data_collator, compute_metrics
+from tools.finetune_reader.utils import prepare_data, data_collator, compute_metrics
 from model import MRCQuestionAnswering
 
 import torch
