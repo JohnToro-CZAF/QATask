@@ -268,3 +268,46 @@ class BM25PostProcessor(BasePostProcessor):
 
     def __call__(self, data, mode):
         return self.process(data, mode)
+
+class SimplePostProcessor(BM25PostProcessor):
+    def __init__(self, cfg=None, db_path=None):
+        super().__init__(cfg, db_path)
+    
+    def find_wikipage(self, question):
+        matched_wiki_answers = []
+        tmp_reader_ans = [] # Debuging purpose
+        #Only one answer
+        for idx, reader_ans in enumerate(question['answer']):
+            post_ans = None
+            # TODO: Handle reader_ans is None type
+            reader_ans = handleReaderAns(reader_ans, question['question'])
+
+            tmp_reader_ans.append(reader_ans) # debugging purpose
+            # Extends current retrieved wikipages by new matched wiki entities, searched by reader_ans
+            candidate_wikipages = question['candidate_wikipages'].copy() + self.find_matched_wikipage(reader_ans)
+            choices = ["",] + [wikipage[5:].replace("_", " ") for wikipage in candidate_wikipages] # if we can not match by process extract -> default is an empty string
+            # TODO: New neural mode. Using fuzzy wuzzy does not solve the entity linking problem
+            if reader_ans in choices:
+                wiki_with_space = reader_ans
+            else:
+                wiki_with_space = self.linking_to_wiki(reader_ans, question['question'] + ' ' + question['formated_passages'][idx])
+                wiki_with_space = process.extractOne(wiki_with_space, choices)[0]
+            if wiki_with_space == "":
+                matched_wikipage = None
+                question['scores'][idx] = question['passage_scores'][idx] = 0
+            else:
+                matched_wikipage = 'wiki/' + wiki_with_space.replace(" ", "_")
+            matched_wiki_answers.append(matched_wikipage)
+            return question, matched_wiki_answers, tmp_reader_ans
+    
+    def process(self, data, mode):
+        print("Postprocessing...")
+        emp = {'data': []}
+        for question in tqdm(data["data"]):
+            if question['ans_type'] > 0:
+                question = self.process_ans_type(question, mode)
+            else:
+                question, matched_wiki_answers, tmp_reader_ans = self.find_wikipage(question)
+            emp['data'].append(self.save_question(question, mode))
+        
+        return emp

@@ -8,11 +8,11 @@ import os.path as osp
 import os
 from tqdm import tqdm
 import numpy as np
-from CocCocTokenizer import PyTokenizer
+# from CocCocTokenizer import PyTokenizer
 
 class TokBM25Retriever(BaseRetriever):
     def __init__(self, cfg, db_path):
-        self.T = PyTokenizer(load_nontone_data=True)
+        # self.T = PyTokenizer(load_nontone_data=True)
         self.searcher = LuceneSearcher(cfg.index_path)
         self.searcher.set_language('vn')
         self.top_k = cfg.top_k

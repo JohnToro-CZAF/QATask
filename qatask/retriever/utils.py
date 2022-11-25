@@ -6,25 +6,24 @@ import enum
 from underthesea import word_tokenize, ner, pos_tag
 
 from underthesea import word_tokenize, text_normalize, sent_tokenize
-from rank_bm25 import BM25L
+from underthesea import word_tokenize, text_normalize, sent_tokenize
+from rank_bm25 import BM25Okapi
 
-def nlp_sieve_passages(passages, question):
+def nlp_sieve_passages(question, passages, k):
+    question = word_tokenize(text_normalize(question))
     tokenized_passages = []
-    question = word_tokenize(text_normalize(question), format="text")
-    poss = pos_tag(question)
-    # print(poss)
-    query = " ".join([w for w, pos in poss if pos != 'E' and pos != 'P' and pos != 'V' and pos != 'A'])
-    print(query)
-    for id, wiki, score, passage in passages:
-        tokenized_passages.append(word_tokenize(text_normalize(passage), format="text"))
-    bm25 = BM25L(tokenized_passages)
-    top5_passages = bm25.get_top_n(question, tokenized_passages, n=5)
-    formated_passages = []
-    for passage in top5_passages:
-        print(passage)
-        formated_passages.append(passages[tokenized_passages.index(passage)])
-    # print(formated_passages)
-    return formated_passages
+    for passage in passages:
+        sentences = sent_tokenize(passage)
+        cleaned_sentences = [text_normalize(sent) for sent in sentences]
+        cleaned_sentences = [sent for sent in sentences]
+        tokenized_passage = []
+        for sent in cleaned_sentences:
+            tokenized_passage.extend(word_tokenize(sent))
+        tokenized_passages.append(tokenized_passage)
+    bm25 = BM25Okapi(tokenized_passages)
+    topk_passages = bm25.get_top_n(question, passages, n=k)
+    scores = bm25.get_scores(question)
+    return topk_passages, scores
 
 class QPM(enum.Enum):
   Unclassified = 0
