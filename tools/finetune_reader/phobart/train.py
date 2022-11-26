@@ -211,7 +211,6 @@ def main(gpu, args):
     train_dataloader = DataLoader(
         train_dataset,
         sampler = train_sampler,
-        shuffle=True,
         drop_last=True,
         collate_fn=default_data_collator,
         batch_size=args.per_gpu_batch_size,
