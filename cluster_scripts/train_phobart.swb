@@ -13,6 +13,13 @@
 #SBATCH --gpus-per-task=1
 #SBATCH --gpu-bind=verbose,per_task:1
 
+export MASTER_PORT=12340
+export WORLD_SIZE=4
+echo "NODELIST="${SLURM_NODELIST}
+master_addr=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_ADDR=$master_addr
+echo "MASTER_ADDR="$MASTER_ADDR
+
 module purge 
 module load anaconda3_gpu
-conda run -n mmpose NGPU=4 python3 -m torch.distributed.launch --nproc_per_node=4 -m tools.finetune_reader.phobart.train -per_gpu_batch_size 5 --gpus 4 --eval_freq 10000 --num-workers 6
+conda run -n mmpose NGPU=4 python3 -m torch.distributed.launch --nproc_per_node=4 -m tools.finetune_reader.phobart.train -per_gpu_batch_size 5 --gpus 4 --eval_freq 10000 -num-workers 6
