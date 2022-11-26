@@ -1,0 +1,27 @@
+#!/bin/bash
+#SBATCH --job-name="electra"
+#SBATCH --output="HAL_outputs/vid.%j.%N.out"
+#SBATCH --error="HAL_outputs/vid.%j.%N.err"
+#SBATCH --partition=gpux4
+#SBATCH --time=24
+
+export MASTER_PORT=12340
+export WORLD_SIZE=4
+echo "NODELIST="${SLURM_NODELIST}
+master_addr=$(scontrol show hostnames "$SLURM_JOB_NODELIST" | head -n 1)
+export MASTER_ADDR=$master_addr
+echo "MASTER_ADDR="$MASTER_ADDR
+module load opence
+conda run -n mmpose python3 -m tools.finetune_reader.electra.train \
+  --model_name_or_path 'FPTAI/velectra-base-discriminator-cased' \
+  --do_eval \
+  --do_train \
+  --per_gpu_train_batch_size 16 \
+  --learning_rate 3e-5 \
+  --num_train_epochs 10 \
+  --max_seq_length 384 \
+  --doc_stride 128 \
+  --output_dir 'checkpoint/pretrained_model/electra' \
+  --overwrite_output_dir \
+  --save_steps 1000 \
+  --n_gpu 4

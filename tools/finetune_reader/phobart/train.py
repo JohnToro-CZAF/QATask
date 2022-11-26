@@ -113,8 +113,7 @@ def preprocess_validation_dataset(examples, tokenizer, max_length, stride):
 
 def train(train_dataloader, eval_dataloader, validation_dataset_val, raw_datasets, model, optimizer, metric, rank, args):
     torch.manual_seed(args.global_rank + args.seed)
-    if rank == 0:
-        wandb.init("Phobart")
+    wandb.init("Phobart")
 
     num_update_steps_per_epoch = len(train_dataloader)
     num_training_steps = args.epochs * num_update_steps_per_epoch
@@ -127,28 +126,31 @@ def train(train_dataloader, eval_dataloader, validation_dataset_val, raw_dataset
     )
 
     progress_bar = tqdm(range(num_training_steps))
-
+    step = 0
     prev_metrics = None
     for epoch in range(args.epochs):
         # Training
         model.train()
         for i, batch in enumerate(train_dataloader): # Evaluate after each epoch, not after a number of steps!
             # import ipdb; ipdb.set_trace()
+            step += 1
             batch = {k: v.cuda() for k, v in batch.items()}
             outputs = model(**batch)
             loss = outputs.loss
 
             # backpropagation in 2 GPUs so we need to calculate mean of loss
             loss.mean().backward()
-            if rank == 0:
+            if True:
                 wandb.log({"loss": loss.mean().item()})
             optimizer.step()
             lr_scheduler.step()
             optimizer.zero_grad()
             progress_bar.update(1)
+            if step % 2000 == 0:
+                model.module.save_pretrained(args.output_dir)
 
         # Evaluation
-            if i % args.eval_freq == 0 and rank == 0:
+            if step % 20000 == 0:
                 model.eval()
                 start_logits = []
                 end_logits = []
@@ -242,7 +244,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-metric', type=str, default="squad")
-    parser.add_argument('-output_dir', type=str, default="checkpoint/pretrained_model/phobart")
+    parser.add_argument('-output_dir', type=str, default="checkpoint/pretrained_model/phobart-base")
     parser.add_argument('-scheduler', type=str, default="linear")
     parser.add_argument('-pretrained_model', type=str, default="vinai/bartpho-syllable")
 

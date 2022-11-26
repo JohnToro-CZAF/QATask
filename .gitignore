@@ -35,4 +35,6 @@ qatask/database/wikipedia_faiss/*
 qatask/database/wikipedia_faiss/wikipedia_pyserini_format.jsonl
 datasets/*
 wandb/*
+HAL_outputs/*
+mlruns/*
 .vscode-upload.json
