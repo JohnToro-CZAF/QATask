@@ -8,10 +8,19 @@ import collections
 import json
 from tqdm.auto import tqdm
 from nltk import word_tokenize
+import torch.distributed as dist
 
 tokenizer = AutoTokenizer.from_pretrained("nguyenvulebinh/vi-mrc-large")
 
 
+def average_main(x, args):
+    if not args.is_distributed:
+        return x
+    if args.world_size > 1:
+        dist.reduce(x, 0, op=dist.ReduceOp.SUM)
+        if args.is_main:
+            x = x / args.world_size
+    return x
 
 def compute_metrics_phobart(args, metric, start_logits, end_logits, features, examples):
 

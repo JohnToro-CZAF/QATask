@@ -1,7 +1,9 @@
 import argparse
-from tools.finetune_reader.utils import compute_metrics_phobart
+from tools.finetune_reader.utils import compute_metrics_phobart, average_main
 from datasets import load_dataset
 from transformers import PreTrainedTokenizerFast
+from transformers.models.bartpho.tokenization_bartpho_fast import BartphoTokenizerFast
+import wandb
 from transformers import AutoModelForQuestionAnswering, default_data_collator, get_scheduler
 from torch import nn
 import evaluate
@@ -10,9 +12,11 @@ from torch.optim import AdamW
 from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader
+import torch.distributed as dist
+from torch.utils.data import DataLoader, RandomSampler, DistributedSampler, SequentialSampler
+import torch.multiprocessing as mp
 
-
-def preprocess_training_dataset(examples):
+def preprocess_training_dataset(examples, tokenizer, max_length, stride):
 
     questions = [q.strip() for q in examples["question"]]
     contexts = [c.strip() for c in examples["context"]]
@@ -74,7 +78,7 @@ def preprocess_training_dataset(examples):
     return inputs
 
 
-def preprocess_validation_dataset(examples):
+def preprocess_validation_dataset(examples, tokenizer, max_length, stride):
 
     questions = [q.strip() for q in examples["question"]]
     contexts = [c.strip() for c in examples["context"]]
@@ -106,48 +110,10 @@ def preprocess_validation_dataset(examples):
     return inputs
 
 
-def main(raw_datasets, args):
-
-    train_dataset = raw_datasets["train"].map(
-        preprocess_training_dataset,
-        batched=True,
-        remove_columns=raw_datasets["train"].column_names,
-    )
-
-    validation_dataset = raw_datasets["validation"].map(
-        preprocess_validation_dataset,
-        batched=True,
-        remove_columns=raw_datasets["validation"].column_names,
-    )
-   
-    metric = evaluate.load(args.metric)
-
-    train_dataset.set_format("torch")
-    validation_set = validation_dataset.remove_columns(["example_id", "offset_mapping"])
-    validation_set.set_format("torch")
-
-    train_dataloader = DataLoader(
-        train_dataset,
-        shuffle=True,
-        collate_fn=default_data_collator,
-        batch_size=args.batch_size,
-    )
-    eval_dataloader = DataLoader(
-        validation_set,
-        collate_fn=default_data_collator,
-        batch_size=args.batch_size
-    )
-
-    device = torch.device(args.device)
-    model = AutoModelForQuestionAnswering.from_pretrained(args.pretrained_model)
-    
-    # Utilize 2 or more GPUs for training
-    if device is torch.device("cuda"):
-        model = nn.DataParallel(model) 
-    
-    model.to(device)
-
-    optimizer = AdamW(model.parameters(), lr=args.lr)
+def train(train_dataloader, eval_dataloader, validation_dataset, raw_datasets, model, optimizer, metric, args):
+    torch.manual_seed(args.global_rank + args.seed)
+    if args.local_rank == 0:
+        wandb.init("Phobart")
 
     num_update_steps_per_epoch = len(train_dataloader)
     num_training_steps = args.epochs * num_update_steps_per_epoch
@@ -165,48 +131,109 @@ def main(raw_datasets, args):
     for epoch in range(args.epochs):
         # Training
         model.train()
-        for _, batch in enumerate(train_dataloader): # Evaluate after each epoch, not after a number of steps!
+        for i, batch in enumerate(train_dataloader): # Evaluate after each epoch, not after a number of steps!
+            # import ipdb; ipdb.set_trace()
+            step += 1
+            batch = {k: v.cuda() for k, v in batch.items()}
             outputs = model(**batch)
             loss = outputs.loss
 
             # backpropagation in 2 GPUs so we need to calculate mean of loss
             loss.mean().backward()
-
+            wandb.log({"loss": loss.mean().item()})
             optimizer.step()
             lr_scheduler.step()
             optimizer.zero_grad()
             progress_bar.update(1)
 
         # Evaluation
-        model.eval()
-        start_logits = []
-        end_logits = []
-        print("Evaluation!")
-        for batch in tqdm(eval_dataloader):
-            with torch.no_grad():
-                outputs = model(**batch)
+        if i % args.eval_freq == 0 and args.local_rank == 0:
+            model.eval()
+            start_logits = []
+            end_logits = []
+            print("Evaluation!")
+            for batch in tqdm(eval_dataloader):
+                with torch.no_grad():
+                    outputs = model(**batch)
 
-            start_logits.append(outputs.start_logits.cpu().numpy())
-            end_logits.append(outputs.end_logits.cpu().numpy())
+                start_logits.append(outputs.start_logits.cpu().numpy())
+                end_logits.append(outputs.end_logits.cpu().numpy())
 
-        start_logits = np.concatenate(start_logits)
-        end_logits = np.concatenate(end_logits)
-        start_logits = start_logits[: len(validation_dataset)]
-        end_logits = end_logits[: len(validation_dataset)]
+            start_logits = np.concatenate(start_logits)
+            end_logits = np.concatenate(end_logits)
+            start_logits = start_logits[: len(validation_dataset)]
+            end_logits = end_logits[: len(validation_dataset)]
 
-        metrics = compute_metrics_phobart(
-            args, metric, start_logits, end_logits, validation_dataset, raw_datasets["validation"]
+            metrics = compute_metrics_phobart(
+                args, metric, start_logits, end_logits, validation_dataset, raw_datasets["validation"]
+            )
+            print(f"Epoch {epoch}:", metrics)
+            wandb.log(metrics)
+
+            if epoch == 0:
+                prev_metrics = metrics
+            elif metrics['f1'] > prev_metrics['f1']:
+                print(f"Saving model to {args.output_dir}...")
+                model.module.save_pretrained(args.output_dir)
+                print("Finished.")
+                prev_metrics = metrics
+
+def main(gpu, args):
+    rank = args.nr * args.gpus + gpu
+    dist.init_process_group(backend='nccl', init_method='env://', world_size=args.world_size, rank=rank)
+    tokenizer = BartphoTokenizerFast.from_pretrained(args.pretrained_model)
+    raw_datasets = load_dataset("tools/finetune_reader/phobart/visquad.py")
+
+    # Filter examples which have just 1 element in list of 'text' answer
+    raw_datasets["validation"] = raw_datasets["validation"].filter(lambda x: len(x["answers"]["text"]) == 1)
+    train_dataset = raw_datasets["train"].map(
+        preprocess_training_dataset,
+        batched=True,
+        remove_columns=raw_datasets["train"].column_names,
+        fn_kwargs={"tokenizer": tokenizer, "max_length": args.max_length, "stride": args.stride},
+    )
+
+    validation_dataset = raw_datasets["validation"].map(
+        preprocess_validation_dataset,
+        batched=True,
+        remove_columns=raw_datasets["validation"].column_names,
+        fn_kwargs={"tokenizer": tokenizer, "max_length": args.max_length, "stride": args.stride},
+    )
+   
+    metric = evaluate.load(args.metric)
+
+    train_dataset.set_format("torch")
+    validation_set = validation_dataset.remove_columns(["example_id", "offset_mapping"])
+    validation_set.set_format("torch")
+    train_sampler = DistributedSampler(train_dataset, num_replicas=args.world_size, rank=args.local_rank)
+
+
+    train_dataloader = DataLoader(
+        train_dataset,
+        sampler = train_sampler,
+        shuffle=True,
+        drop_last=True,
+        collate_fn=default_data_collator,
+        batch_size=args.per_gpu_batch_size,
+    )
+    
+    eval_dataloader = DataLoader(
+        validation_set,
+        collate_fn=default_data_collator,
+        batch_size=args.per_gpu_batch_size,
+    )
+    print("Built Data Loader")
+    torch.cuda.set_device(gpu)
+    model = AutoModelForQuestionAnswering.from_pretrained(args.pretrained_model)
+    model.cuda(gpu)
+    model = torch.nn.parallel.DistributedDataParallel(
+            model,
+            device_ids=[gpu],
+            output_device=[gpu],
+            find_unused_parameters=False,
         )
-        print(f"Epoch {epoch}:", metrics)
-
-        if epoch == 0:
-            prev_metrics = metrics
-        elif metrics['f1'] > prev_metrics['f1']:
-            print(f"Saving model to {args.output_dir}...")
-            model.module.save_pretrained(args.output_dir)
-            print("Finished.")
-            prev_metrics = metrics
-
+    optimizer = AdamW(model.parameters(), lr=args.lr)
+    train(train_dataloader, eval_dataloader, validation_set, raw_datasets, model, optimizer, metric, args)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -217,25 +244,33 @@ if __name__ == "__main__":
     parser.add_argument('-scheduler', type=str, default="linear")
     parser.add_argument('-pretrained_model', type=str, default="vinai/bartpho-syllable")
 
-    parser.add_argument('-batch_size', type=int, default=4)
+    parser.add_argument('-per_gpu_batch_size', type=int, default=2)
     parser.add_argument('-epochs', type=int, default=15)
     parser.add_argument('-lr', type=int, default=2e-5)
 
     parser.add_argument('-max_length', type=int, default=1024)
     parser.add_argument('-stride', type=int, default=128)
-
     parser.add_argument('-n_best', type=int, default=20)
     parser.add_argument('-max_answer_length', type=int, default=200)
-
+    parser.add_argument("--local_rank", type=int, default=-1,
+                        help="For distributed training: local_rank")
+    parser.add_argument('-n', '--nodes', default=1, type=int, metavar='N',
+                    help='number of data loading workers (default: 1)')
+    parser.add_argument('--is-distributed', default=True, type=bool)
+    parser.add_argument('--global-rank', default=0, type=int)
+    parser.add_argument('--gpus', default=1, type=int,
+                        help='number of gpus per node')
+    parser.add_argument('--nr', default=0, type=int,
+                        help='ranking within the nodes')
+    parser.add_argument('--seed', type=int, default=0, help="random seed for initialization")
+    # training parameters
+    parser.add_argument('--eval_freq', type=int, default=500,
+                    help='evaluate model every <eval_freq> steps during training')
     args = parser.parse_args()
-    
-    raw_datasets = load_dataset("viquad.py")
-
-    # Filter examples which have just 1 element in list of 'text' answer
-    raw_datasets["validation"] = raw_datasets["validation"].filter(lambda x: len(x["answers"]["text"]) == 1)
-
-    tokenizer = PreTrainedTokenizerFast.from_pretrained(args.pretrained_model)
-    max_length = args.max_length
-    stride = args.stride
-
-    main(raw_datasets, args)
+    torch.manual_seed(args.seed)
+    # src.slurm.init_distributed_mode(opt)
+    # print("Init distributed mode")
+    # src.slurm.init_signal_handler()
+    # print("Init signal handler")
+    args.world_size = args.gpus * args.nodes
+    mp.spawn(main, nprocs=args.gpus, args=(args,))
