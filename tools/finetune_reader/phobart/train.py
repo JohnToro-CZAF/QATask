@@ -15,6 +15,7 @@ from torch.utils.data import DataLoader
 import torch.distributed as dist
 from torch.utils.data import DataLoader, RandomSampler, DistributedSampler, SequentialSampler
 import torch.multiprocessing as mp
+import copy
 
 def preprocess_training_dataset(examples, tokenizer, max_length, stride):
 
@@ -110,7 +111,7 @@ def preprocess_validation_dataset(examples, tokenizer, max_length, stride):
     return inputs
 
 
-def train(train_dataloader, eval_dataloader, validation_dataset, raw_datasets, model, optimizer, metric, rank, args):
+def train(train_dataloader, eval_dataloader, validation_dataset_val, raw_datasets, model, optimizer, metric, rank, args):
     torch.manual_seed(args.global_rank + args.seed)
     if rank == 0:
         wandb.init("Phobart")
@@ -147,36 +148,35 @@ def train(train_dataloader, eval_dataloader, validation_dataset, raw_datasets, m
             progress_bar.update(1)
 
         # Evaluation
-        if i % args.eval_freq == 0 and rank == 0:
-            model.eval()
-            start_logits = []
-            end_logits = []
-            print("Evaluation!")
-            for batch in tqdm(eval_dataloader):
-                with torch.no_grad():
-                    outputs = model(**batch)
+            if i % args.eval_freq == 0 and rank == 0:
+                model.eval()
+                start_logits = []
+                end_logits = []
+                print("Evaluation!")
+                for batch in tqdm(eval_dataloader):
+                    with torch.no_grad():
+                        outputs = model(**batch)
 
-                start_logits.append(outputs.start_logits.cpu().numpy())
-                end_logits.append(outputs.end_logits.cpu().numpy())
+                    start_logits.append(outputs.start_logits.cpu().numpy())
+                    end_logits.append(outputs.end_logits.cpu().numpy())
 
-            start_logits = np.concatenate(start_logits)
-            end_logits = np.concatenate(end_logits)
-            start_logits = start_logits[: len(validation_dataset)]
-            end_logits = end_logits[: len(validation_dataset)]
+                start_logits = np.concatenate(start_logits)
+                end_logits = np.concatenate(end_logits)
+                start_logits = start_logits[: len(validation_dataset_val)]
+                end_logits = end_logits[: len(validation_dataset_val)]
+                metrics = compute_metrics_phobart(
+                    args, metric, start_logits, end_logits, validation_dataset_val, raw_datasets["validation"]
+                )
+                print(f"Epoch {epoch}:", metrics)
+                wandb.log(metrics)
 
-            metrics = compute_metrics_phobart(
-                args, metric, start_logits, end_logits, validation_dataset, raw_datasets["validation"]
-            )
-            print(f"Epoch {epoch}:", metrics)
-            wandb.log(metrics)
-
-            if epoch == 0:
-                prev_metrics = metrics
-            elif metrics['f1'] > prev_metrics['f1']:
-                print(f"Saving model to {args.output_dir}...")
-                model.module.save_pretrained(args.output_dir)
-                print("Finished.")
-                prev_metrics = metrics
+                if epoch == 0:
+                    prev_metrics = metrics
+                elif metrics['f1'] > prev_metrics['f1']:
+                    print(f"Saving model to {args.output_dir}...")
+                    model.module.save_pretrained(args.output_dir)
+                    print("Finished.")
+                    prev_metrics = metrics
 
 def main(gpu, args):
     rank = args.nr * args.gpus + gpu
@@ -203,8 +203,10 @@ def main(gpu, args):
     metric = evaluate.load(args.metric)
 
     train_dataset.set_format("torch")
+    validation_dataset_val = copy.copy(validation_dataset)
     validation_set = validation_dataset.remove_columns(["example_id", "offset_mapping"])
     validation_set.set_format("torch")
+
     train_sampler = DistributedSampler(train_dataset, num_replicas=args.world_size, rank=rank)
 
 
@@ -214,12 +216,14 @@ def main(gpu, args):
         drop_last=True,
         collate_fn=default_data_collator,
         batch_size=args.per_gpu_batch_size,
+        num_workers=args.num_workers,
     )
     
     eval_dataloader = DataLoader(
         validation_set,
         collate_fn=default_data_collator,
         batch_size=args.per_gpu_batch_size,
+        num_workers=args.num_workers,
     )
     print("Built Data Loader")
     torch.cuda.set_device(gpu)
@@ -232,18 +236,18 @@ def main(gpu, args):
             find_unused_parameters=False,
         )
     optimizer = AdamW(model.parameters(), lr=args.lr)
-    train(train_dataloader, eval_dataloader, validation_set, raw_datasets, model, optimizer, metric, rank, args)
+    train(train_dataloader, eval_dataloader, validation_dataset_val, raw_datasets, model, optimizer, metric, rank, args)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('-metric', type=str, default="squad")
-    parser.add_argument('-device', type=str, default="cuda")
-    parser.add_argument('-output_dir', type=str, default="checkpoints")
+    parser.add_argument('-output_dir', type=str, default="checkpoint/pretrained_model/phobart")
     parser.add_argument('-scheduler', type=str, default="linear")
     parser.add_argument('-pretrained_model', type=str, default="vinai/bartpho-syllable")
 
     parser.add_argument('-per_gpu_batch_size', type=int, default=2)
+    parser.add_argument('-num-workers', type=int, default=8)
     parser.add_argument('-epochs', type=int, default=15)
     parser.add_argument('-lr', type=int, default=2e-5)
 
@@ -257,13 +261,13 @@ if __name__ == "__main__":
                     help='number of data loading workers (default: 1)')
     parser.add_argument('--is-distributed', default=True, type=bool)
     parser.add_argument('--global-rank', default=0, type=int)
-    parser.add_argument('--gpus', default=2, type=int,
+    parser.add_argument('--gpus', default=3, type=int,
                         help='number of gpus per node')
     parser.add_argument('--nr', default=0, type=int,
                         help='ranking within the nodes')
     parser.add_argument('--seed', type=int, default=0, help="random seed for initialization")
     # training parameters
-    parser.add_argument('--eval_freq', type=int, default=500,
+    parser.add_argument('--eval_freq', type=int, default=20,
                     help='evaluate model every <eval_freq> steps during training')
     args = parser.parse_args()
     torch.manual_seed(args.seed)

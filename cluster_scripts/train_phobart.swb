@@ -15,4 +15,4 @@
 
 module purge 
 module load anaconda3_gpu
-conda run -n mmpose NGPU=4 python3 python -m torch.distributed.launch --nproc_per_node=4 -m tools.finetune_reader.phobart.train -per_gpu_batch_size 8 --gpus 4
+conda run -n mmpose NGPU=4 python3 -m torch.distributed.launch --nproc_per_node=4 -m tools.finetune_reader.phobart.train -per_gpu_batch_size 5 --gpus 4 --eval_freq 10000 --num-workers 6
