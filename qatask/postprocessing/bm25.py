@@ -219,7 +219,9 @@ class BM25PostProcessor(BasePostProcessor):
         unique_candidates = {}
         best_scores = 0
         for idx, wikipage in enumerate(question['answer']):
-            if wikipage not in unique_candidates.keys() and (abs(question['scores'][idx] - best_scores) < self.concat_threshold or best_scores == 0):
+            # This is not effective when retrieving a lot of passages -> common false fact added up to the score
+            # if wikipage not in unique_candidates.keys() and (abs(question['scores'][idx] - best_scores) < self.concat_threshold or best_scores == 0):
+            if wikipage not in unique_candidates.keys() and (len(unique_candidates) < self.denoisy and question['scores'][idx] > self.concat_threshold):
                 best_scores = question['scores'][idx]
                 unique_candidates[wikipage] = idx
         tuple_candidates = list(itertools.combinations(unique_candidates.keys(), 2))

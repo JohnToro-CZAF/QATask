@@ -110,7 +110,7 @@ def get_recall_reader(preds, truths) -> float:
         if truth['category'] != 'FULL_ANNOTATION': continue
         if 'according_wikipages' in pred.keys():
             tot += 1
-            pred_answer = pred['according_wikipages'][:1]
+            pred_answer = pred['according_wikipages']
             for ans in pred_answer:
                 if ans == truth['answer']:
                     cnt += 1
@@ -161,13 +161,12 @@ def main(args):
     print("Answer Accuracy: ", get_answer_accuracy_multiple(pred, truth))
     recall_reader, total_wiki = get_recall_reader(pred, truth)
     print("Recall of reader: {}, over {}".format(recall_reader, total_wiki))
-    print("Recall when retrieving top_k: ", get_retrieving_recall(pred, truth))
     recall, acc, total_re_reading = get_answer_recall_multiple_concat(pred, truth)
     print("Recall when rereading : {} and accuracy {}, over {}".format(recall, acc, total_re_reading))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--pred', type=str, default="datasets/output/train.json")
+    parser.add_argument('--pred', type=str, default="datasets/output/train_ensemble.json")
     parser.add_argument('--truth', type=str, default="datasets/train_test_files/train_sample.json")
     args = parser.parse_args()
     main(args)

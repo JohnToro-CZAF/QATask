@@ -193,8 +193,11 @@ class BertReader(BaseReader):
       ids_sorted = sorted(range(len(scores)),key=lambda x: scores[x] + passage_scores[x], reverse=True)
       return ids_sorted
 
-    def sieve_by_scores(self, item, ids_scores):
-      item = [item[id] for id in ids_scores][:self.sieve_threshold]
+    def sieve_by_scores(self, item, mode='reader'):
+      if mode == 'reader':
+        item = [item[id] for id in self.ids_order][:self.sieve_threshold]
+      elif mode == 'log':
+        item = [item[id] for id in self.ids_order]
       return item
 
     def __call__(self, data):
@@ -245,7 +248,7 @@ class BertReader(BaseReader):
           if ans_type > 0:
             saved_format['data'].append({'id':'testa_{}'.format(idx+1),
                                         'question':item['question'],
-                                        # 'answer': bestans,
+                                        # TODO: This have to be standardize
                                         'answer': bestans,
                                         'scores': item['scores'] + item2['scores'],
                                         'passage_scores': item['passage_scores'] * 2,
@@ -258,25 +261,27 @@ class BertReader(BaseReader):
             # Then using some lightweight classifier to reorder the scores (BERT_ranking) or the same as 
             # we currentlt use: using BERT to answer then sort by scores.
             ids_order = self.index_order_scores(item['scores'] + item2['scores'], item['passage_scores'] * 2)
+            # TODO: Potential error here, using global class variable while ids_order is local variable for each iteration
+            self.ids_order = ids_order
             saved_format['data'].append({'id':'testa_{}'.format(idx+1),
                                         'question':item['question'],
-                                        'answer': item['answers'] + item2['answers'],
-                                        'scores': item['scores'] + item2['scores'],
-                                        'passage_scores': item['passage_scores'] * 2,
-                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']] * 2,
-                                        'candidate_passages': [passage[3] for passage in data[idx]['candidate_passages']] * 2,
-                                        'formated_passages': [self.format_passage(passage[3], item['starts'][stt], item['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])] + [self.format_passage(passage[3], item2['starts'][stt], item2['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])],
+                                        'answer': self.sieve_by_scores(item['answers'] + item2['answers']),
+                                        'scores': self.sieve_by_scores(item['scores'] + item2['scores']),
+                                        'passage_scores': self.sieve_by_scores(item['passage_scores'] * 2),
+                                        'candidate_wikipages': self.sieve_by_scores([passage[1] for passage in data[idx]['candidate_passages']] * 2),
+                                        'candidate_passages': self.sieve_by_scores([passage[3] for passage in data[idx]['candidate_passages']] * 2),
+                                        'formated_passages': self.sieve_by_scores([self.format_passage(passage[3], item['starts'][stt], item['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])] + [self.format_passage(passage[3], item2['starts'][stt], item2['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])]),
                                         'ans_type': ans_type})
 
           if getattr(self.cfg, 'logpth') is not None:
             saved_logs['data'].append({'id':'testa_{}'.format(idx+1),
                                         'question':item['question'],
-                                        'answer': item['answers'] + item2['answers'],
-                                        'scores': item['scores'] + item2['scores'],
-                                        'passage_scores': item['passage_scores'] * 2,
-                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']] * 2,
-                                        'candidate_passages': [passage[3] for passage in data[idx]['candidate_passages']] * 2,
-                                        'formated_passages': [self.format_passage(passage[3], item['starts'][stt], item['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])] + [self.format_passage(passage[3], item2['starts'][stt], item2['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])],
+                                        'answer': self.sieve_by_scores(item['answers'] + item2['answers'], mode='log'),
+                                        'scores': self.sieve_by_scores(item['scores'] + item2['scores'], mode='log'),
+                                        'passage_scores': self.sieve_by_scores(item['passage_scores'] * 2, mode='log'),
+                                        'candidate_wikipages': self.sieve_by_scores([passage[1] for passage in data[idx]['candidate_passages']] * 2, mode='log'),
+                                        'candidate_passages': self.sieve_by_scores([passage[3] for passage in data[idx]['candidate_passages']] * 2, mode='log'),
+                                        'formated_passages': self.sieve_by_scores([self.format_passage(passage[3], item['starts'][stt], item['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])] + [self.format_passage(passage[3], item2['starts'][stt], item2['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])], mode='log'),
                                         'ans_type': ans_type})
       if getattr(self.cfg, 'logpth') is not None:
         self.logging(saved_logs)
