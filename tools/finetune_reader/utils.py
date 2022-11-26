@@ -10,7 +10,7 @@ from tqdm.auto import tqdm
 from nltk import word_tokenize
 import torch.distributed as dist
 
-tokenizer = AutoTokenizer.from_pretrained("nguyenvulebinh/vi-mrc-large")
+# tokenizer = AutoTokenizer.from_pretrained("nguyenvulebinh/vi-mrc-large")
 
 
 def average_main(x, args):
