@@ -12,7 +12,6 @@ import torch.distributed as dist
 
 # tokenizer = AutoTokenizer.from_pretrained("nguyenvulebinh/vi-mrc-large")
 
-
 def average_main(x, args):
     if not args.is_distributed:
         return x
@@ -73,7 +72,7 @@ def compute_metrics_phobart(args, metric, start_logits, end_logits, features, ex
     theoretical_answers = [{"id": ex["id"], "answers": ex["answers"]} for ex in examples]
     return metric.compute(predictions=predicted_answers, references=theoretical_answers)
 
-def compute_metrics(eval_pred, tokenizer=tokenizer):
+def compute_metrics(eval_pred, tokenizer=None):
     metric = datasets.load_metric("squad", cache_dir='./log/metric')
     # print(eval_pred)
     logits, labels = eval_pred

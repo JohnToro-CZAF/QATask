@@ -12,7 +12,7 @@ from transformers import DPRContextEncoderTokenizer, DPRContextEncoder, DPRQuest
 from underthesea import word_tokenize
 from .utils import nlp_sieve_passages
 from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-
+import torch
 
 class ColbertRetriever(BaseRetriever):
     def __init__(self, index_path, top_k, db_path):
@@ -218,7 +218,7 @@ class MultilingualDPRBM25Retriever(BM25Retriever):
             question_ids = self.question_tokenizer.encode(_question, max_length=256, return_tensors='pt', truncation=True).cuda()
             question_embeddings = self.question_encoder(question_ids).pooler_output.detach().cpu().numpy()
             contexts_ids = self.context_tokenizer([self.translate(context) for context in contexts], return_tensors='pt', padding="longest", truncation=True, add_special_tokens=True, max_length=512)
-            contexts_embeddings = self.context_encoder(contexts_ids["input_ids"].cuda()).pooler_output.detach().cpu().numpy()
+            contexts_embeddings = np.concatenate([self.context_encoder(contexts_ids["input_ids"][:25].cuda()).pooler_output.detach().cpu().numpy(), self.context_encoder(contexts_ids["input_ids"][25:].cuda()).pooler_output.detach().cpu().numpy()])
             scores = np.matmul(question_embeddings, contexts_embeddings.T)
             candidate_ids = np.argsort(scores)[0][-self.top_h:][::-1]
             dpr_passages = [contexts[i] for i in candidate_ids]
