@@ -1,11 +1,18 @@
 #!/bin/bash
-#SBATCH --job-name="phobart"
 #SBATCH --output="HAL_outputs/vid.%j.%N.out"
 #SBATCH --error="HAL_outputs/vid.%j.%N.err"
-#SBATCH --partition=gpux1
-#SBATCH --time=24
-  
-module load opence
-conda activate mmpose
+#SBATCH --mem=128g
+#SBATCH --nodes=1
+#SBATCH --ntasks-per-node=4
+#SBATCH --cpus-per-task=16     
+#SBATCH --partition=gpuA100x4
+#SBATCH --time=24:00:00
+#SBATCH --account=bbmp-delta-gpu
+#SBATCH --job-name=robust
+#SBATCH --gpus-per-node=4
+#SBATCH --gpus-per-task=1
+#SBATCH --gpu-bind=verbose,per_task:1
 
-srun python3 -m tools.finetune_reader.phobart.train
+module purge 
+module load anaconda3_gpu
+srun python3 python -m torch.distributed.launch --nproc_per_node=4 -m tools.finetune_reader.phobart.train -per_gpu_batch_size 8 --gpus 4

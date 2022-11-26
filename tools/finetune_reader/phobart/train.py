@@ -110,9 +110,9 @@ def preprocess_validation_dataset(examples, tokenizer, max_length, stride):
     return inputs
 
 
-def train(train_dataloader, eval_dataloader, validation_dataset, raw_datasets, model, optimizer, metric, args):
+def train(train_dataloader, eval_dataloader, validation_dataset, raw_datasets, model, optimizer, metric, rank, args):
     torch.manual_seed(args.global_rank + args.seed)
-    if args.local_rank == 0:
+    if rank == 0:
         wandb.init("Phobart")
 
     num_update_steps_per_epoch = len(train_dataloader)
@@ -133,21 +133,21 @@ def train(train_dataloader, eval_dataloader, validation_dataset, raw_datasets, m
         model.train()
         for i, batch in enumerate(train_dataloader): # Evaluate after each epoch, not after a number of steps!
             # import ipdb; ipdb.set_trace()
-            step += 1
             batch = {k: v.cuda() for k, v in batch.items()}
             outputs = model(**batch)
             loss = outputs.loss
 
             # backpropagation in 2 GPUs so we need to calculate mean of loss
             loss.mean().backward()
-            wandb.log({"loss": loss.mean().item()})
+            if rank == 0:
+                wandb.log({"loss": loss.mean().item()})
             optimizer.step()
             lr_scheduler.step()
             optimizer.zero_grad()
             progress_bar.update(1)
 
         # Evaluation
-        if i % args.eval_freq == 0 and args.local_rank == 0:
+        if i % args.eval_freq == 0 and rank == 0:
             model.eval()
             start_logits = []
             end_logits = []
@@ -205,7 +205,7 @@ def main(gpu, args):
     train_dataset.set_format("torch")
     validation_set = validation_dataset.remove_columns(["example_id", "offset_mapping"])
     validation_set.set_format("torch")
-    train_sampler = DistributedSampler(train_dataset, num_replicas=args.world_size, rank=args.local_rank)
+    train_sampler = DistributedSampler(train_dataset, num_replicas=args.world_size, rank=rank)
 
 
     train_dataloader = DataLoader(
@@ -232,7 +232,7 @@ def main(gpu, args):
             find_unused_parameters=False,
         )
     optimizer = AdamW(model.parameters(), lr=args.lr)
-    train(train_dataloader, eval_dataloader, validation_set, raw_datasets, model, optimizer, metric, args)
+    train(train_dataloader, eval_dataloader, validation_set, raw_datasets, model, optimizer, metric, rank, args)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -257,7 +257,7 @@ if __name__ == "__main__":
                     help='number of data loading workers (default: 1)')
     parser.add_argument('--is-distributed', default=True, type=bool)
     parser.add_argument('--global-rank', default=0, type=int)
-    parser.add_argument('--gpus', default=1, type=int,
+    parser.add_argument('--gpus', default=2, type=int,
                         help='number of gpus per node')
     parser.add_argument('--nr', default=0, type=int,
                         help='ranking within the nodes')
@@ -272,4 +272,5 @@ if __name__ == "__main__":
     # src.slurm.init_signal_handler()
     # print("Init signal handler")
     args.world_size = args.gpus * args.nodes
+
     mp.spawn(main, nprocs=args.gpus, args=(args,))
