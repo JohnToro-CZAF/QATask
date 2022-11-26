@@ -10,8 +10,6 @@ from tqdm.auto import tqdm
 from nltk import word_tokenize
 import torch.distributed as dist
 
-tokenizer = AutoTokenizer.from_pretrained("nguyenvulebinh/vi-mrc-large")
-
 def average_main(x, args):
     if not args.is_distributed:
         return x
@@ -72,7 +70,8 @@ def compute_metrics_phobart(args, metric, start_logits, end_logits, features, ex
     theoretical_answers = [{"id": ex["id"], "answers": ex["answers"]} for ex in examples]
     return metric.compute(predictions=predicted_answers, references=theoretical_answers)
 
-def compute_metrics(eval_pred, tokenizer=None):
+def compute_metrics(eval_pred, tokenizer=AutoTokenizer.from_pretrained("nguyenvulebinh/vi-mrc-large")
+):
     metric = datasets.load_metric("squad", cache_dir='./log/metric')
     # print(eval_pred)
     logits, labels = eval_pred
@@ -150,7 +149,8 @@ def data_collator(samples):
     return batch_samples
 
 
-def tokenize_function(example, tokenizer=tokenizer):
+def tokenize_function(example, tokenizer=AutoTokenizer.from_pretrained("nguyenvulebinh/vi-mrc-large")
+):
     example["question"] = example["question"].split()
     example["context"] = example["context"].split()
     # max_len_single_sentence = tokenizer.max_len_single_sentence
