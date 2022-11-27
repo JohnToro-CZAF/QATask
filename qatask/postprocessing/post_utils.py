@@ -68,6 +68,7 @@ def select_nearsest_shortest_withspace(short_form:str, wikipages):
 
 
 def date_transform(text, question):
+    text = text.replace('/', ' năm ')
     text = text.lower().translate(str.maketrans('','',string.punctuation))
     words = text.split()
     lookup = {'năm': '', 'tháng': '', 'ngày': '', 'mùng': ''}

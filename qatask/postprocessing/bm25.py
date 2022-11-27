@@ -172,14 +172,13 @@ class BM25PostProcessor(BasePostProcessor):
                 question['answer'] = post_ans.strip()
         elif anstype == 1:
             post_ans = ""
-            for d in question['answer'].lower().translate(str.maketrans('','',string.punctuation)).split():
+            for d in literal_ans.lower().translate(str.maketrans('','',string.punctuation)).split():
                 if d.isnumeric():
                     post_ans = d
-            if mode == "val":
-                question['answer'] = [post_ans.strip()]
-            else:
-                question['answer'] = post_ans.strip()
-        return question
+            literal_ans = post_ans.strip()
+        else: 
+            literal_ans = None
+        return literal_ans
     
     def find_wikipage(self, question):
         matched_wiki_answers = []
@@ -224,6 +223,17 @@ class BM25PostProcessor(BasePostProcessor):
         #     matched_wiki_answers.append(matched_wikipage)
         return question, matched_wiki_answers, tmp_reader_ans
     
+    def find_literal(self, question):
+        matched_literal_answers, tmp_reader_ans = [], []
+        for idx, reader_ans in enumerate(question['answer']):
+            tmp_reader_ans.append(reader_ans)
+            matched_literal = self.handleLiteralAns(reader_ans, question['question'], question['ans_type'])
+            # TODO: Handle the literal
+            matched_literal_answers.append(matched_literal)
+            if matched_literal is None:
+                question['scores'][idx] = question['passage_scores'][idx] = 0
+        return question, matched_literal_answers, tmp_reader_ans
+
     def reading_concat(self, question, concat_passages, mode):
         print("Have to re read", len(concat_passages))
         ans_concat = []
@@ -283,7 +293,9 @@ class BM25PostProcessor(BasePostProcessor):
         unique_candidates = {}
         best_scores = 0
         for idx, wikipage in enumerate(question['answer']):
+            # This is not effective when retrieving a lot of passages -> common false fact added up to the score
             if wikipage not in unique_candidates.keys() and (abs(question['scores'][idx] - best_scores) < self.concat_threshold or best_scores == 0):
+            # if wikipage not in unique_candidates.keys() and (len(unique_candidates) < self.denoisy and question['scores'][idx] > self.concat_threshold):
                 best_scores = question['scores'][idx]
                 unique_candidates[wikipage] = idx
         tuple_candidates = list(itertools.combinations(unique_candidates.keys(), 2))
@@ -301,49 +313,56 @@ class BM25PostProcessor(BasePostProcessor):
         print("Postprocessing...")
         emp = {'data': []}
         for question in tqdm(data["data"]):
-            if question['ans_type'] > 0:
-                question = self.process_ans_type(question, mode)
+            iswiki = question['ans_type'] == 0
+            if not iswiki:
+                question, matched_literal_answers, tmp_reader_ans = self.find_literal(question)
             else:
                 time_ind = time.time()
                 question, matched_wiki_answers, tmp_reader_ans = self.find_wikipage(question)
-                print("Find wikipage costs: ", time.time() - time_ind)
-                # Sort answers, canidate passaegs by scores -> TODO: Shorter implementation lambda function in separated function
-                ids_sorted = sorted(range(len(question['scores'])),key=lambda x: question['scores'][x] + question['passage_scores'][x], reverse=True)
-                print(len(ids_sorted))
+
+            # Sort answers, canidate passaegs by scores -> TODO: Shorter implementation lambda function in separated function
+            ids_sorted = sorted(range(len(question['scores'])),key=lambda x: question['scores'][x] + question['passage_scores'][x], reverse=True)
+            if iswiki:
                 question['answer'] = [matched_wiki_answers[id] for id in ids_sorted]
-                question['candidate_passages'] = [question['candidate_passages'][id] for id in ids_sorted]
-                question['scores'] = [question['scores'][id] for id in ids_sorted]
-                question['passage_scores'] = [question['passage_scores'][id] for id in ids_sorted]
+            else:
+                question['answer'] = [matched_literal_answers[id] for id in ids_sorted]
+            
+            question['candidate_passages'] = [question['candidate_passages'][id] for id in ids_sorted]
+            question['scores'] = [question['scores'][id] for id in ids_sorted]
+            question['passage_scores'] = [question['passage_scores'][id] for id in ids_sorted]
 
-                # Removing dupplicated answers and merging their scores, notice "" is not a valid answer
-                cp_qs = question.copy()
-                question = self.merge(cp_qs)
+            # Removing dupplicated answers and merging their scores, notice "" is not a valid answer
+            cp_qs = question.copy()
+            question = self.merge(cp_qs)
                 
-                ids_sorted = sorted(range(len(question['scores'])),key=lambda x: question['scores'][x], reverse=True)        
-                # question['pos_answer'] = [question['answer'][id] for id in ids_sorted][:self.denoisy]
-                question['answer'] = [question['answer'][id] for id in ids_sorted][:self.denoisy]
-                question['candidate_passages'] = [question['candidate_passages'][id] for id in ids_sorted][:self.denoisy]
-                
-                # For easy reading json logs
-                question['scores'] = [question['scores'][id] for id in ids_sorted][:self.denoisy]
-                question['passage_scores'] = [question['passage_scores'][id] for id in ids_sorted][:self.denoisy]
+            ids_sorted = sorted(range(len(question['scores'])),key=lambda x: question['scores'][x], reverse=True)
+            # question['pos_answer'] = [question['answer'][id] for id in ids_sorted][:self.denoisy]
+            question['answer'] = [question['answer'][id] for id in ids_sorted][:self.denoisy]
+            question['candidate_passages'] = [question['candidate_passages'][id] for id in ids_sorted][:self.denoisy]
+            
+            # For easy reading json logs
+            question['scores'] = [question['scores'][id] for id in ids_sorted][:self.denoisy]
+            question['passage_scores'] = [question['passage_scores'][id] for id in ids_sorted][:self.denoisy]
 
-                if mode == "val":
-                    question['original_answers'] = [tmp_reader_ans[id] for id in ids_sorted] # debugging purpose
+            if mode == "val":
+                question['original_answers'] = [tmp_reader_ans[id] for id in ids_sorted] # debugging purpose
+                if iswiki:
                     question['according_wikipages'] = [matched_wiki_answers[id] for id in ids_sorted] # debugging purpose
+                else:
+                    question['according_literal'] = [matched_literal_answers[id] for id in ids_sorted] # debugging purpose
 
-                # 1 line below is for baseline
-                # emp['data'].append(self.save_question(question, mode))
-                # continue
-                tuple_candidates, concat_passages = self.building_concat_passages(question)
-                if len(tuple_candidates) == 0:
-                    if mode == "val":
-                        question['answer'] = [question['answer'][0]]
-                    else:
-                        question['answer'] = question['answer'][0]
-                    emp['data'].append(self.save_question(question, mode))
-                    continue
-                question = self.reading_concat(question, concat_passages, mode)
+            # 1 line below is for baseline
+            # emp['data'].append(self.save_question(question, mode))
+            # continue
+            tuple_candidates, concat_passages = self.building_concat_passages(question)
+            if len(tuple_candidates) == 0:
+                if mode == "val":
+                    question['answer'] = [question['answer'][0]]
+                else:
+                    question['answer'] = question['answer'][0]
+                emp['data'].append(self.save_question(question, mode))
+                continue
+            question = self.reading_concat(question, concat_passages, mode)
 
             emp['data'].append(self.save_question(question, mode))
         return emp
