@@ -2,7 +2,7 @@ from transformers import pipeline
 from .base import BaseReader
 from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
-import string
+import string, sys
 import numpy as np
 
 class ListDataset(Dataset):
@@ -20,12 +20,12 @@ class EnsembleReader(BaseReader):
     def __init__(self, cfg=None, tokenizer=None, db_path=None) -> None:
         super().__init__(cfg, tokenizer, db_path)
         self.cfg = cfg
-        self.pipeline = pipeline('question-answering', 
-                                 model=self.cfg.model_checkpoint, 
-                                 tokenizer=self.cfg.model_checkpoint, 
-                                 device="cuda:0", 
-                                 batch_size=self.cfg.batch_size)
-
+        self.pipelines = [
+            pipeline('question-answering', model=self.cfg.model_checkpoint, tokenizer=self.cfg.model_checkpoint, device="cuda:0"),
+            pipeline('question-answering', model="hogger32/xlmRoberta-for-VietnameseQA", tokenizer="hogger32/xlmRoberta-for-VietnameseQA", device="cuda:0"),
+            pipeline('question-answering', model="checkpoint/pretrained_model/electra/checkpoint-19000", tokenizer="checkpoint/pretrained_model/electra/checkpoint-19000", device="cuda:0"),
+        ]
+    
     def prepare(self, data):
         """
         Args:
@@ -40,32 +40,44 @@ class EnsembleReader(BaseReader):
         return res
 
     def postprocess(self, prepared, predicted):
-      answer = []
-      QAans = {'question': "",
-              'scores':[], 
-              'starts':[], 
-              'end':[], 
-              'answers':[]}
-      prepared.append({'question': 'dummy', 'context': 'dummy'})
-      for idx, QA in enumerate(predicted):
-        question = prepared[idx]['question']
-        QAans['question'] = question
-        QAans['scores'].append(QA['score'])
-        QAans['starts'].append(QA['start'])
-        QAans['end'].append(QA['end'])
-        QAans['answers'].append(QA['answer'])
-        if len(predicted) == 1:
-          answer.append(QAans)
-        else:
-            if prepared[idx]['question'] != prepared[idx+1]['question']:
-              answer.append(QAans)
-              QAans = {'question': "",
-                'scores':[], 
-                'starts':[], 
-                'end':[], 
-                'answers':[]}
-            
-      return answer
+        """
+        Args:
+            prepared: list of {question, context}
+            predicted: list of {score, start, end, answer}
+        Returns:
+            answer_dict: dict of {(question, context): [answers]}
+                        where each answer is a dict of {score, start, end, answer}
+        """
+        answer_dict = {}
+        for inp, outs in zip(prepared, predicted):
+            key = (inp['question'], inp['context'])
+            if key not in answer_dict:
+                answer_dict[key] = {
+                    'scores': [],
+                    'starts': [],
+                    'ends': [],
+                    'answers': [],
+                }
+            for out in outs:
+                answer_dict[key]['scores'].append(out['score'])
+                answer_dict[key]['starts'].append(out['start'])
+                answer_dict[key]['ends'].append(out['end'])
+                answer_dict[key]['answers'].append(out['answer'])
+        return answer_dict
+
+    def finalize_answers(self, answer_dict):
+        """
+        Args:
+            answer_dict: dict of {(question, context): [answers]}
+                        where each answer is a dict of {score, start, end, answer}
+        Returns:
+            answer_dict after removing overlapped answers
+        """
+        
+
+        return answer_dict
+
+
 
     def voting(self, item):
       # Merge answers that share common words together
@@ -128,7 +140,7 @@ class EnsembleReader(BaseReader):
         return None
       else:
         return answer
-  
+
 
     def __call__(self, data):
       """
@@ -144,22 +156,29 @@ class EnsembleReader(BaseReader):
 
       # Converting retrievied passages to a suitable format for readers
       for item in data:
-        question = item['question']
-        passage_scores = [passage[2] for passage in item['candidate_passages']]
-        question_passage_scores.append(passage_scores)
-        contexts = [passage[3] for passage in item['candidate_passages']]
-        _data.append({'question': question, 'contexts': contexts})
+          question = item['question']
+          passage_scores = [passage[2] for passage in item['candidate_passages']]
+          question_passage_scores.append(passage_scores)
+          contexts = [passage[3] for passage in item['candidate_passages']]
+          _data.append({'question': question, 'contexts': contexts})
       prepared = self.prepare(_data)
       prepared_dataset = ListDataset(prepared)
+      prepared_dataloader = DataLoader(prepared_dataset, batch_size=self.cfg.batch_size)
 
       # Predicting part
-      predicted = []
-      for batch in tqdm(DataLoader(prepared_dataset, batch_size=self.cfg.batch_size)):
-        predicted_batch = self.pipeline(batch)
-        predicted.extend(predicted_batch)
+      answers = []
+      for _pipeline in self.pipelines:
+          predicted = []
+          for batch in tqdm(prepared_dataloader):
+              pred = _pipeline(batch, topk=5)
+              print(pred); sys.exit()
+              predicted.extend(pred)
+          answers.append(self.postprocess(prepared, predicted))
       
       # Logging the result and passing it to the next step
-      answer = self.postprocess(prepared, predicted)
+      final_answers = self.finalize_answers(answers)
+
+
       saved_logs, saved_format = {'data': []}, {'data': []}
       for idx, item in enumerate(answer):
           item['passage_scores'] = question_passage_scores[idx]
@@ -182,7 +201,8 @@ class EnsembleReader(BaseReader):
         self.logging(saved_logs)
       print("reading done")
       return saved_format
-    
+
+
 if __name__ == "__main__":
     class Config:
         def __init__(self) -> None:

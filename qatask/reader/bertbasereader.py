@@ -51,14 +51,22 @@ class BertReader(BaseReader):
     def __init__(self, cfg=None, tokenizer=None, db_path=None) -> None:
         super().__init__(cfg, tokenizer, db_path)
         self.cfg = cfg
+        
+        # 1st reader: RoBERTa
         self.pipeline = pipeline('question-answering', 
                                  model=self.cfg.model_checkpoint, 
                                  tokenizer=self.cfg.model_checkpoint, 
                                  device="cuda:0", 
                                  batch_size=self.cfg.batch_size)
+        # 2nd reader: xlmRoBERTa
         self.pipeline2 = pipeline('question-answering',
                                   model="hogger32/xlmRoberta-for-VietnameseQA",
                                   tokenizer="hogger32/xlmRoberta-for-VietnameseQA",
+                                  device="cuda:0")
+        # 3rd reader: ELECTRA
+        self.pipeline3 = pipeline('question-answering',
+                                  model="checkpoint/pretrained_model/electra/checkpoint-19000",
+                                  tokenizer="checkpoint/pretrained_model/electra/checkpoint-19000",
                                   device="cuda:0")
         # This number has to be smaller or equal to the self.top_k at retriever
         # Experiments has shown that if sieve_threshold < self.top_k did not bring any improvement results
@@ -171,15 +179,21 @@ class BertReader(BaseReader):
       for batch in tqdm(DataLoader(prepared_dataset, batch_size=self.cfg.batch_size)):
         predicted_batch = self.pipeline2(batch)
         predicted2.extend(predicted_batch) 
-      
+
+      predicted3 = []
+      for batch in tqdm(DataLoader(prepared_dataset, batch_size=self.cfg.batch_size)):
+        predicted_batch = self.pipeline3(batch)
+        predicted3.extend(predicted_batch) 
+
       # merging answers from given (question, context) -> (question, [answers])
       answer = self.postprocess(prepared, predicted)
       answer2 = self.postprocess(prepared, predicted2)
+      answer3 = self.postprocess(prepared, predicted3)
       saved_format = {'data': []}
 
       # ====================== Saving logs ===================
       saved_logs = {'data': []}
-      for idx, (item, item2) in enumerate(zip(answer, answer2)):
+      for idx, (item, item2, item3) in enumerate(zip(answer, answer2, answer3)):
           # Currently we are selecting answer with max score
           # TODO: Select answer with max score and max score of retrieved passage
           item['passage_scores'] = passage_scores[idx]
@@ -214,4 +228,5 @@ class BertReader(BaseReader):
       if getattr(self.cfg, 'logpth') is not None:
         self.logging(saved_logs)
       print("reading done")
+
       return saved_format

@@ -4,6 +4,8 @@ from tools.wiki_utils.wiki_utils import preprocess_slicing
 # from tools.wiki_utils.fst_tokenizer import UITws_v1
 # from CocCocTokenizer import PyTokenizer
 import re
+import os.path as osp
+import os
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -18,6 +20,8 @@ def main():
     # tokenizer = UITws_v1('checkpoint/uitws_v1/base_sep_sfx.pkl')
     # batch_size = 512
     # T = PyTokenizer(load_nontone_data=True)
+    if not osp.exists(args.output_path):
+        os.makedirs(osp.join(*args.output_path.split("/")[:-1]), exist_ok=True)
     with open(args.output_path, "w") as g:
         # control variable to produce small length sliced corpus, in purpose of examining the results
         # control = 0 

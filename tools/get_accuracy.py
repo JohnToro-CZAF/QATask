@@ -166,7 +166,11 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
+<<<<<<< HEAD
+    parser.add_argument('--pred', type=str, default="datasets/output/BM25_BERT_val.json")
+=======
     parser.add_argument('--pred', type=str, default="datasets/output/train_ensemble.json")
+>>>>>>> main
     parser.add_argument('--truth', type=str, default="datasets/train_test_files/train_sample.json")
     args = parser.parse_args()
     main(args)

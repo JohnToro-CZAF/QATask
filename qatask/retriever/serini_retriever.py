@@ -11,6 +11,8 @@ import numpy as np
 from transformers import DPRContextEncoderTokenizer, DPRContextEncoder, DPRQuestionEncoderTokenizer, DPRQuestionEncoder
 from underthesea import word_tokenize
 from .utils import nlp_sieve_passages
+from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
+import torch
 
 class ColbertRetriever(BaseRetriever):
     def __init__(self, index_path, top_k, db_path):
@@ -133,6 +135,7 @@ class HybridRetrieverOnline(BaseRetriever):
             question['candidate_passages'] = candidate_passages 
         return data
 
+
 class DPROnlineRetriever:
     def __init__(self, passage_encoder, query_encoder, top_k):
         self.top_k = top_k
@@ -167,6 +170,7 @@ class BM25Retriever(BaseRetriever):
         self.searcher = LuceneSearcher(index_path)
         self.searcher.set_language('vn')
         self.top_k = top_k
+        print(osp.join(os.getcwd(), db_path))
         self.cur = sqlite3.connect(osp.join(os.getcwd(), db_path)).cursor()
         
     def __call__(self, data):
@@ -188,6 +192,54 @@ class BM25Retriever(BaseRetriever):
             question['candidate_passages'] = candidate_passages
         print("Retrieved passages.")
         return data
+     
+
+class MultilingualDPRBM25Retriever(BM25Retriever):
+    def __init__(self, cfg, db_path) -> None:
+        super().__init__(cfg.index_path, cfg.top_k, db_path)
+        self.tokenizer_trans = AutoTokenizer.from_pretrained("VietAI/envit5-translation")
+        self.model_trans = AutoModelForSeq2SeqLM.from_pretrained("VietAI/envit5-translation").cuda()
+        passage_encoder = "voidful/dpr-ctx_encoder-bert-base-multilingual"
+        query_encoder = "voidful/dpr-question_encoder-bert-base-multilingual"
+        self.context_encoder = DPRContextEncoder.from_pretrained(passage_encoder).cuda()
+        self.context_tokenizer = DPRContextEncoderTokenizer.from_pretrained(passage_encoder)
+        self.question_encoder = DPRQuestionEncoder.from_pretrained(query_encoder).cuda()
+        self.question_tokenizer = DPRQuestionEncoderTokenizer.from_pretrained(query_encoder)
+        self.top_h = cfg.top_h
+
+    def translate(self, text):
+        outputs = self.model_trans.generate(self.tokenizer_trans(text, return_tensors="pt", padding=True).input_ids.cuda(), max_length=512)
+        en_text = self.tokenizer_trans.batch_decode(outputs, skip_special_tokens=True)
+        return en_text[0][4:]
+    
+    def __call__(self, data):
+        data = super().__call__(data)
+        for question in data:
+            _question = self.translate(question['question'])
+            contexts = [passage[3] for passage in question['candidate_passages']]
+            question_ids = self.question_tokenizer.encode(_question, max_length=256, return_tensors='pt', truncation=True).cuda()
+            question_embeddings = self.question_encoder(question_ids).pooler_output.detach().cpu().numpy()
+            contexts_ids = self.context_tokenizer([self.translate(context) for context in contexts], return_tensors='pt', padding="longest", truncation=True, add_special_tokens=True, max_length=512)
+            contexts_embeddings = np.concatenate([self.context_encoder(contexts_ids["input_ids"][:25].cuda()).pooler_output.detach().cpu().numpy(), self.context_encoder(contexts_ids["input_ids"][25:].cuda()).pooler_output.detach().cpu().numpy()])
+            scores = np.matmul(question_embeddings, contexts_embeddings.T)
+            candidate_ids = np.argsort(scores)[0][-self.top_h:][::-1]
+            dpr_passages = [contexts[i] for i in candidate_ids]
+            # import ipdb; ipdb.set_trace()
+            sieve_passages, scores = nlp_sieve_passages(question['question'], contexts, self.top_h)
+            set_passages = set(dpr_passages + sieve_passages)
+            if len(set_passages) > self.top_k:
+                set_passages = set_passages[:self.top_h]
+            ids = self.getid_set_passages(set_passages, question)
+            question['candidate_passages'] = [question['candidate_passages'][i] for i in ids]
+        return data
+    
+    def getid_set_passages(self, set_passages, question):
+        ids = []
+        for i, passage in enumerate(question['candidate_passages']):
+            if passage[3] in set_passages:
+                ids.append(i)
+        return ids
+    
 
 if __name__ == "__main__":
     searcher = FaissSearcher(
