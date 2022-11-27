@@ -11,5 +11,4 @@ python3 -m tools.finetune_reader.electra.train \
   --output_dir 'checkpoint/pretrained_model/electra' \
   --overwrite_output_dir \
   --save_steps 1000 \ 
-  -n_gpu 4
 ```
