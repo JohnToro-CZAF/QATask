@@ -44,14 +44,22 @@ class BertReader(BaseReader):
     def __init__(self, cfg=None, tokenizer=None, db_path=None) -> None:
         super().__init__(cfg, tokenizer, db_path)
         self.cfg = cfg
+        
+        # 1st reader: RoBERTa
         self.pipeline = pipeline('question-answering', 
                                  model=self.cfg.model_checkpoint, 
                                  tokenizer=self.cfg.model_checkpoint, 
                                  device="cuda:0", 
                                  batch_size=self.cfg.batch_size)
+        # 2nd reader: xlmRoBERTa
         self.pipeline2 = pipeline('question-answering',
                                   model="hogger32/xlmRoberta-for-VietnameseQA",
                                   tokenizer="hogger32/xlmRoberta-for-VietnameseQA",
+                                  device="cuda:0")
+        # 3rd reader: ELECTRA
+        self.pipeline3 = pipeline('question-answering',
+                                  model="checkpoint/pretrained_model/electra/checkpoint-19000",
+                                  tokenizer="checkpoint/pretrained_model/electra/checkpoint-19000",
                                   device="cuda:0")
         # This number has to be smaller or equal to the self.top_k at retriever
         # Experiments has shown that if sieve_threshold < self.top_k did not bring any improvement results
@@ -158,9 +166,9 @@ class BertReader(BaseReader):
         res_item['answers'].append(rsptext)
 
       # Logging when voting to see the results
-      with open('logs/voting.json', 'a') as f:
-        json.dump(res_item, f, ensure_ascii=False, indent=4)
-        f.write('\n')
+      # with open('logs/voting.json', 'a') as f:
+      #   json.dump(res_item, f, ensure_ascii=False, indent=4)
+      #   f.write('\n')
       return res_item
 
     def getbestans(self, item):
@@ -228,15 +236,21 @@ class BertReader(BaseReader):
       for batch in tqdm(DataLoader(prepared_dataset, batch_size=self.cfg.batch_size)):
         predicted_batch = self.pipeline2(batch)
         predicted2.extend(predicted_batch) 
-      
+
+      predicted3 = []
+      for batch in tqdm(DataLoader(prepared_dataset, batch_size=self.cfg.batch_size)):
+        predicted_batch = self.pipeline3(batch)
+        predicted3.extend(predicted_batch) 
+
       # merging answers from given (question, context) -> (question, [answers])
       answer = self.postprocess(prepared, predicted)
       answer2 = self.postprocess(prepared, predicted2)
+      answer3 = self.postprocess(prepared, predicted3)
       saved_format = {'data': []}
 
       # ====================== Saving logs ===================
       saved_logs = {'data': []}
-      for idx, (item, item2) in enumerate(zip(answer, answer2)):
+      for idx, (item, item2, item3) in enumerate(zip(answer, answer2, answer3)):
           # Currently we are selecting answer with max score
           # TODO: Select answer with max score and max score of retrieved passage
           item['passage_scores'] = passage_scores[idx]
@@ -247,38 +261,39 @@ class BertReader(BaseReader):
                                         'question':item['question'],
                                         # 'answer': bestans,
                                         'answer': bestans,
-                                        'scores': item['scores'] + item2['scores'],
-                                        'passage_scores': item['passage_scores'] * 2,
-                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']] * 2,
-                                        'candidate_passages': [passage[3] for passage in data[idx]['candidate_passages']] * 2,
+                                        'scores': item['scores'] + item2['scores'] + item3['scores'],
+                                        'passage_scores': item['passage_scores'] * 3,
+                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']] * 3,
+                                        'candidate_passages': [passage[3] for passage in data[idx]['candidate_passages']] * 3,
                                         'ans_type': ans_type})   
           else:
             # Sieving underperformance answer here by sorting by scores
             # TODO: We can retrieve many candidates here (to improve the recall of retriever)
             # Then using some lightweight classifier to reorder the scores (BERT_ranking) or the same as 
             # we currentlt use: using BERT to answer then sort by scores.
-            ids_order = self.index_order_scores(item['scores'] + item2['scores'], item['passage_scores'] * 2)
+            ids_order = self.index_order_scores(item['scores'] + item2['scores'] + item3['scores'], item['passage_scores'] * 3)
             saved_format['data'].append({'id':'testa_{}'.format(idx+1),
                                         'question':item['question'],
-                                        'answer': item['answers'] + item2['answers'],
-                                        'scores': item['scores'] + item2['scores'],
-                                        'passage_scores': item['passage_scores'] * 2,
-                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']] * 2,
-                                        'candidate_passages': [passage[3] for passage in data[idx]['candidate_passages']] * 2,
-                                        'formated_passages': [self.format_passage(passage[3], item['starts'][stt], item['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])] + [self.format_passage(passage[3], item2['starts'][stt], item2['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])],
+                                        'answer': item['answers'] + item2['answers'] + item3['answers'],
+                                        'scores': item['scores'] + item2['scores'] + item3['scores'],
+                                        'passage_scores': item['passage_scores'] * 3,
+                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']] * 3,
+                                        'candidate_passages': [passage[3] for passage in data[idx]['candidate_passages']] * 3,
+                                        'formated_passages': [self.format_passage(passage[3], item['starts'][stt], item['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])] + [self.format_passage(passage[3], item2['starts'][stt], item2['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])] + [self.format_passage(passage[3], item3['starts'][stt], item3['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])],
                                         'ans_type': ans_type})
 
           if getattr(self.cfg, 'logpth') is not None:
             saved_logs['data'].append({'id':'testa_{}'.format(idx+1),
                                         'question':item['question'],
-                                        'answer': item['answers'] + item2['answers'],
-                                        'scores': item['scores'] + item2['scores'],
-                                        'passage_scores': item['passage_scores'] * 2,
-                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']] * 2,
-                                        'candidate_passages': [passage[3] for passage in data[idx]['candidate_passages']] * 2,
-                                        'formated_passages': [self.format_passage(passage[3], item['starts'][stt], item['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])] + [self.format_passage(passage[3], item2['starts'][stt], item2['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])],
+                                        'answer': item['answers'] + item2['answers'] + item3['answers'],
+                                        'scores': item['scores'] + item2['scores'] + item3['scores'],
+                                        'passage_scores': item['passage_scores'] * 3,
+                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']] * 3,
+                                        'candidate_passages': [passage[3] for passage in data[idx]['candidate_passages']] * 3,
+                                        'formated_passages': [self.format_passage(passage[3], item['starts'][stt], item['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])] + [self.format_passage(passage[3], item2['starts'][stt], item2['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])] + [self.format_passage(passage[3], item3['starts'][stt], item3['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])],
                                         'ans_type': ans_type})
       if getattr(self.cfg, 'logpth') is not None:
         self.logging(saved_logs)
       print("reading done")
+
       return saved_format

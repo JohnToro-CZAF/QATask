@@ -23,6 +23,10 @@ def parse_arguments():
 class Pipeline:
     def __init__(self, cfg) -> None:
         self.tokenizer = build_tokenizer(cfg.tokenizer)
+        if cfg.database.rebuild:
+            self.db = build_database(cfg.database)
+        else:
+            self.db = None
         self.reader = build_reader(cfg.reader, self.tokenizer, cfg.database.database_path)
         self.retriever = build_retriever(cfg.retriever, self.tokenizer, cfg.database.database_path)
         self.postprocessor = build_postprocessor(cfg.postprocessor, cfg.postprocessor.database_path)

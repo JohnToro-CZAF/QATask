@@ -170,6 +170,7 @@ class BM25Retriever(BaseRetriever):
         self.searcher = LuceneSearcher(index_path)
         self.searcher.set_language('vn')
         self.top_k = top_k
+        print(osp.join(os.getcwd(), db_path))
         self.cur = sqlite3.connect(osp.join(os.getcwd(), db_path)).cursor()
         
     def __call__(self, data):
@@ -191,6 +192,7 @@ class BM25Retriever(BaseRetriever):
             question['candidate_passages'] = candidate_passages
         print("Retrieved passages.")
         return data
+     
 
 class MultilingualDPRBM25Retriever(BM25Retriever):
     def __init__(self, cfg, db_path) -> None:
