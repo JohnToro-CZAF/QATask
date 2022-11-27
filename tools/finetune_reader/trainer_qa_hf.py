@@ -20,7 +20,7 @@ from transformers import Trainer
 from transformers.trainer_utils import PredictionOutput
 
 class QuestionAnsweringTrainer(Trainer):
-    def __init__(self, *args, eval_examples=None, post_process_function=None, **kwargs):
+    def __init__(self, *args, eval_examples=None, post_process_function=None,per_gpu_eval_batch_size=3,evaluation_strategy="epoch", **kwargs):
         super().__init__(*args, **kwargs)
         self.eval_examples = eval_examples
         self.post_process_function = post_process_function

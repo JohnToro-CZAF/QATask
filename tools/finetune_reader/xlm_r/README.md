@@ -1,14 +1,14 @@
 ```
-python3 -m tools.finetune_reader.electra.train \
-  --model_name_or_path 'FPTAI/velectra-base-discriminator-cased' \
+python3 -m tools.finetune_reader.xlm_r.train \
+  --model_name_or_path xlm-roberta-large \
   --do_eval \
   --do_train \
-  --per_device_train_batch_size 1 \
-  --learning_rate 3e-5 \
+  --per_device_train_batch_size 10 \
+  --learning_rate 1e-5 \
   --num_train_epochs 10 \
-  --max_seq_length 384 \
+  --max_seq_length 256 \
   --doc_stride 128 \
-  --output_dir 'checkpoint/pretrained_model/electra_test' \
+  --output_dir 'checkpoint/pretrained_model/xlm-roberta-large' \
   --overwrite_output_dir \
   --version_2_with_negative \
   --save_steps 1000 \ 

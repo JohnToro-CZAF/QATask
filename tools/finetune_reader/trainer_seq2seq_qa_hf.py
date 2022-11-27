@@ -31,7 +31,7 @@ if is_torch_tpu_available(check_device=False):
 
 
 class QuestionAnsweringSeq2SeqTrainer(Seq2SeqTrainer):
-    def __init__(self, *args, eval_examples=None, post_process_function=None, **kwargs):
+    def __init__(self, *args, eval_examples=None, post_process_function=None, evaluation_strategy="epoch", **kwargs):
         super().__init__(*args, **kwargs)
         self.eval_examples = eval_examples
         self.post_process_function = post_process_function
