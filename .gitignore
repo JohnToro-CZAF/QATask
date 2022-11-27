@@ -38,3 +38,4 @@ wandb/*
 HAL_outputs/*
 mlruns/*
 .vscode-upload.json
+*.zip
