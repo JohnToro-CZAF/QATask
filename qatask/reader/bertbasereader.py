@@ -4,9 +4,9 @@ from torch.utils.data import DataLoader, Dataset
 from tqdm import tqdm
 import string
 import numpy as np
-from underthesea import ner
 import re
-import json
+from typing import List, Dict, Sequence, Tuple
+from collections import defaultdict
 
 class ListDataset(Dataset):
     def __init__(self, original_list):
@@ -38,6 +38,13 @@ def checktype(text, question):
     if len(words) == 1 and words[0].isdigit():
         return 1
     return 0
+
+def check_dominant_type(answers: List[str], scores: List[float], question: str) -> int:
+  cnt = defaultdict()
+  for idx, answer in enumerate(answers):
+    cnt[checktype(answer, question)] = cnt.get(checktype(answer, question), 0) + scores[idx]
+  print(question, " ", max(cnt, key=cnt.get)) # Debugging
+  return max(cnt, key=cnt.get)
 
 class BertReader(BaseReader):
     # class __name__
@@ -110,73 +117,6 @@ class BertReader(BaseReader):
             
       return answer
 
-    def voting(self, item):
-      # Merge answers that share common words together
-      answers_dict = {}
-      for idx, ans in enumerate(item['answers']):
-        words_ans = ans.translate(str.maketrans('', '', string.punctuation)).split()
-        flagout = 0
-        for answer in answers_dict.keys():
-          flag = 0
-          for w in words_ans:
-            if w in answer:
-              flag = 1
-              break
-          if flag == 1:
-            flagout = 1
-            answers_dict[answer]['count'] += 1
-            answers_dict[answer]['scores'].append(item['scores'][idx])
-            answers_dict[answer]['passage_scores'].append(item['passage_scores'][idx])
-            answers_dict[answer]['candidate_texts'].append(ans)
-            break
-          else:
-            continue
-        if flagout == 0:
-          answers_dict[ans] = {
-            "count" : 1,
-            "scores": [item['scores'][idx]],
-            "passage_scores": [item['passage_scores'][idx]],
-            "candidate_texts": [ans]
-          }
-      res_item = {
-        'question': item['question'],
-        'scores': [],
-        'starts': [],
-        "end": [],
-        'answers': [],
-        "passage_scores" : []
-      }
-      for answer, info in answers_dict.items():
-        rsptext = ""
-        mx = 0
-        for s, ps in zip(info['scores'], info['passage_scores']):
-          if s + ps > mx:
-            rsptext = info['candidate_texts'][info['scores'].index(s)]
-            mx = s + ps
-        res_item['scores'].append(np.sum(info['scores']))
-        res_item['passage_scores'].append(np.sum(info['passage_scores']))
-        res_item['answers'].append(rsptext)
-
-      # Logging when voting to see the results
-      with open('logs/voting.json', 'a') as f:
-        json.dump(res_item, f, ensure_ascii=False, indent=4)
-        f.write('\n')
-      return res_item
-
-    def getbestans(self, item):
-      """
-      Args: item: keys = ['question', 'scores', 'starts', 'end', 'answers', 'passage_scores']
-      Returns: best_answer
-      """
-      mu = self.cfg.weighted_mu
-      item = self.voting(item)
-      answer = sorted(item['answers'], key=lambda x: mu*item['scores'][item['answers'].index(x)] + (1-mu)*item['passage_scores'][item['answers'].index(x)], reverse=True)[0]
-      ans_score = item['scores'][item['answers'].index(answer)]
-      if ans_score < self.cfg.threshold:
-        return None
-      else:
-        return answer
-  
     def format_passage(self, ctx, start, end):
       """
         Arguments:
@@ -243,35 +183,23 @@ class BertReader(BaseReader):
           # Currently we are selecting answer with max score
           # TODO: Select answer with max score and max score of retrieved passage
           item['passage_scores'] = passage_scores[idx]
-          bestans = self.getbestans(item)
-          ans_type = checktype(bestans, item['question'])
-          if ans_type > 0:
-            saved_format['data'].append({'id':'testa_{}'.format(idx+1),
-                                        'question':item['question'],
-                                        # TODO: This have to be standardize
-                                        'answer': bestans,
-                                        'scores': item['scores'] + item2['scores'],
-                                        'passage_scores': item['passage_scores'] * 2,
-                                        'candidate_wikipages': [passage[1] for passage in data[idx]['candidate_passages']] * 2,
-                                        'candidate_passages': [passage[3] for passage in data[idx]['candidate_passages']] * 2,
-                                        'ans_type': ans_type})   
-          else:
-            # Sieving underperformance answer here by sorting by scores
-            # TODO: We can retrieve many candidates here (to improve the recall of retriever)
-            # Then using some lightweight classifier to reorder the scores (BERT_ranking) or the same as 
-            # we currentlt use: using BERT to answer then sort by scores.
-            ids_order = self.index_order_scores(item['scores'] + item2['scores'], item['passage_scores'] * 2)
-            # TODO: Potential error here, using global class variable while ids_order is local variable for each iteration
-            self.ids_order = ids_order
-            saved_format['data'].append({'id':'testa_{}'.format(idx+1),
-                                        'question':item['question'],
-                                        'answer': self.sieve_by_scores(item['answers'] + item2['answers']),
-                                        'scores': self.sieve_by_scores(item['scores'] + item2['scores']),
-                                        'passage_scores': self.sieve_by_scores(item['passage_scores'] * 2),
-                                        'candidate_wikipages': self.sieve_by_scores([passage[1] for passage in data[idx]['candidate_passages']] * 2),
-                                        'candidate_passages': self.sieve_by_scores([passage[3] for passage in data[idx]['candidate_passages']] * 2),
-                                        'formated_passages': self.sieve_by_scores([self.format_passage(passage[3], item['starts'][stt], item['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])] + [self.format_passage(passage[3], item2['starts'][stt], item2['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])]),
-                                        'ans_type': ans_type})
+          ans_type = check_dominant_type(item['answers']+item2['answers'], item['scores'] + item2['scores'], item['question'])
+          # Sieving underperformance answer here by sorting by scores
+          # TODO: We can retrieve many candidates here (to improve the recall of retriever)
+          # Then using some lightweight classifier to reorder the scores (BERT_ranking) or the same as 
+          # we currentlt use: using BERT to answer then sort by scores.
+          ids_order = self.index_order_scores(item['scores'] + item2['scores'], item['passage_scores'] * 2)
+          # TODO: Potential error here, using global class variable while ids_order is local variable for each iteration
+          self.ids_order = ids_order
+          saved_format['data'].append({'id':'testa_{}'.format(idx+1),
+                                      'question':item['question'],
+                                      'answer': self.sieve_by_scores(item['answers'] + item2['answers']),
+                                      'scores': self.sieve_by_scores(item['scores'] + item2['scores']),
+                                      'passage_scores': self.sieve_by_scores(item['passage_scores'] * 2),
+                                      'candidate_wikipages': self.sieve_by_scores([passage[1] for passage in data[idx]['candidate_passages']] * 2),
+                                      'candidate_passages': self.sieve_by_scores([passage[3] for passage in data[idx]['candidate_passages']] * 2),
+                                      'formated_passages': self.sieve_by_scores([self.format_passage(passage[3], item['starts'][stt], item['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])] + [self.format_passage(passage[3], item2['starts'][stt], item2['end'][stt]) for stt, passage in enumerate(data[idx]['candidate_passages'])]),
+                                      'ans_type': ans_type})
 
           if getattr(self.cfg, 'logpth') is not None:
             saved_logs['data'].append({'id':'testa_{}'.format(idx+1),

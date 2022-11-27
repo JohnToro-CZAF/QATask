@@ -9,7 +9,7 @@ reader:
   type: bert_xlm
   threshold: 0.00000000000000000001
   weighted_mu: 0.5
-  sieve_threshold: 150
+  sieve_threshold: 70
   # model_checkpoint: checkpoint/pretrained_model/checkpoint-3906
   # model_checkpoint: henryhoang/hoangnhathuy
   model_checkpoint: nguyenvulebinh/vi-mrc-large
@@ -18,13 +18,13 @@ reader:
   logpth: "logs/"
 retriever:
   type: bm25
-  top_k: 150
+  top_k: 70
   index_path: checkpoint/indexes/BM25
 postprocessor:
   type: bm25
   top_k: 300
-  denoisy: 2
-  concat_threshold: 0
+  denoisy: 5
+  concat_threshold: 0.15
   # database_path: qatask/database/wikipedia_db/wikisqlite_final1.db # Might have to change to original db wikisqlite.db since the new one seems to produce many duplicated pages
   database_path: qatask/database/wikipedia_db/wikisqlite_post.db 
   index_path: checkpoint/indexes/BM25_post
