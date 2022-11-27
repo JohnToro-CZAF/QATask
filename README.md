@@ -34,7 +34,7 @@ as `datasets/wikipedia.jsonl`
 
 To clean and slice the wiki articles, run:
 ```
-python3 -m tools.wiki_slicing --data-path datasets/wikipedia.jsonl --output-path datasets/wikicorpus/wiki.jsonl
+python3 -m tools.wiki_utils.wiki_slicing --data-path datasets/wikipedia.jsonl --output-path datasets/wikicorpus/wiki.jsonl
 ```
 
 ## BM25
@@ -64,11 +64,11 @@ python3 -m tools.pysirini.generate_sparse --cfg configs/postprocessor/BM25.yaml
 ### Running inference
 After getting BM25 index, run main pipeline to output with finetuned BERT.
 ```
-python3 main.py --cfg configs/main/BM25_BERT_train.yaml \
+python3 main.py --cfg configs/main/BM25_BERT_val.yaml \
                 --output-path datasets/output/BM25_BERT_val.json \
                 --sample-path datasets/train_test_files/train_sample.json \
                 --mode val \
-                --size-infer 2000 \ 
+                --size-infer 2000 
 ```
 
 ## Faiss Retriever

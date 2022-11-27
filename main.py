@@ -23,10 +23,6 @@ def parse_arguments():
 class Pipeline:
     def __init__(self, cfg) -> None:
         self.tokenizer = build_tokenizer(cfg.tokenizer)
-        if cfg.database.rebuild:
-            self.db = build_database(cfg.database)
-        else:
-            self.db = None
         self.reader = build_reader(cfg.reader, self.tokenizer, cfg.database.database_path)
         self.retriever = build_retriever(cfg.retriever, self.tokenizer, cfg.database.database_path)
         self.postprocessor = build_postprocessor(cfg.postprocessor, cfg.postprocessor.database_path)
@@ -36,17 +32,6 @@ class Pipeline:
         results = self.reader(results)
         final_results = self.postprocessor(results, mode)
         return final_results
-        # for idx, item in enumerate(results):
-        #     item['candidate_wikipages'] = [passage[1] for passage in item['candidate_passages']]
-            # item.pop('candidate_passages', None)
-        # saved_format = {'data': []}
-        # for idx, item in enumerate(results):
-        #     saved_format['data'].append({'id':'testa_{}'.format(idx+1),
-        #                     'question':item['question'],
-        #                     'candidate_wikipages': item['candidate_wikipages'],
-        #                     'candidate_passages': item['candidate_passages'],
-        #                     'len': len(item['candidate_passages'])})
-        # return saved_format
 
 def main() -> None:
     args = parse_arguments()

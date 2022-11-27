@@ -11,3 +11,5 @@ fuzzywuzzy
 transformers
 datasets
 nltk
+omegaconf
+rank-bm25
