@@ -36,18 +36,25 @@ def most_frequent(List, k):
 class BM25PostProcessor(BasePostProcessor):
     def __init__(self, cfg=None, db_path=None):
         super().__init__(cfg, db_path)
-        self.denoisy = 4
+        self.cfg = cfg
+        self.concat_threshold = self.cfg.concat_threshold
+        self.denoisy = self.cfg.denoisy
+        self.top_k = cfg.top_k
+        
         self.searcher = LuceneSearcher(cfg.index_path)
         self.searcher.set_language('vn')
-        self.cfg = cfg
         self.docdb = DocDB(db_path)
-        self.top_k = cfg.top_k
         con = sqlite3.connect(osp.join(os.getcwd(), db_path))
         self.cur = con.cursor()
+        self.pipeline2 = pipeline('question-answering',
+                            model="hogger32/xlmRoberta-for-VietnameseQA",
+                            tokenizer="hogger32/xlmRoberta-for-VietnameseQA",
+                            device="cuda:0")
         self.pipeline = pipeline('question-answering', 
                                 device="cuda:0",
                                 model='nguyenvulebinh/vi-mrc-large',
                                 tokenizer='nguyenvulebinh/vi-mrc-large')
+        
         self.linker_tokenizer = AutoTokenizer.from_pretrained("facebook/mgenre-wiki")
         self.linker_model = AutoModelForSeq2SeqLM.from_pretrained("facebook/mgenre-wiki").eval().to('cuda:0')
 
@@ -80,6 +87,8 @@ class BM25PostProcessor(BasePostProcessor):
       answers_dict = {}
       for idx, ans in enumerate(item['answer']):
         if ans in answers_dict.keys():
+            # Heuristic by combining scores seems ineffective ->
+            # answers_dict[ans]['scores'] = max(item['scores'][idx], answers_dict[ans]['scores'])
             answers_dict[ans]['scores'] += item['scores'][idx]
         else:
           answers_dict[ans] = {
@@ -113,7 +122,6 @@ class BM25PostProcessor(BasePostProcessor):
             num_return_sequences=1,
             max_length = 200
         )
-        # print(reader_answer, output)
         fine_grained_ans = self.linker_tokenizer.batch_decode(output, skip_special_tokens=True)[0][:-5]
         return fine_grained_ans.strip()
     
@@ -142,7 +150,6 @@ class BM25PostProcessor(BasePostProcessor):
         matched_wiki_answers = []
         tmp_reader_ans = [] # Debuging purpose
         for idx, reader_ans in enumerate(question['answer']):
-            post_ans = None
             # TODO: Handle reader_ans is None type
             reader_ans = handleReaderAns(reader_ans, question['question'])
 
@@ -161,10 +168,12 @@ class BM25PostProcessor(BasePostProcessor):
                 question['scores'][idx] = question['passage_scores'][idx] = 0
             else:
                 matched_wikipage = 'wiki/' + wiki_with_space.replace(" ", "_")
+
             matched_wiki_answers.append(matched_wikipage)
-            return question, matched_wiki_answers, tmp_reader_ans
+        return question, matched_wiki_answers, tmp_reader_ans
     
     def reading_concat(self, question, concat_passages, mode):
+        print("Have to re read", len(concat_passages))
         prepared = [{"question": question["question"], "context": concat_passage} for concat_passage in concat_passages]
         prepared_dataset = ListDataset(prepared)
         predicted = []
@@ -173,7 +182,13 @@ class BM25PostProcessor(BasePostProcessor):
             predicted.extend(predicted_batch)
         ans_concat = []
         for QA in predicted:
-            ans_concat.append((QA["answer"], QA["score"])) 
+            ans_concat.append((QA["answer"], QA["score"]))
+        predicted = []
+        for batch in DataLoader(prepared_dataset, batch_size=30):
+            predicted_batch = self.pipeline2(batch)
+            predicted.extend(predicted_batch)
+        for QA in predicted:
+            ans_concat.append((QA["answer"], QA["score"]))
         if mode == "val":
             question["ans_concat"] = ans_concat
         final_ans_concat = []
@@ -203,7 +218,7 @@ class BM25PostProcessor(BasePostProcessor):
         unique_candidates = {}
         best_scores = 0
         for idx, wikipage in enumerate(question['answer']):
-            if wikipage not in unique_candidates.keys() and (abs(question['scores'][idx] - best_scores) < 0.1 or best_scores == 0):
+            if wikipage not in unique_candidates.keys() and (abs(question['scores'][idx] - best_scores) < self.concat_threshold or best_scores == 0):
                 best_scores = question['scores'][idx]
                 unique_candidates[wikipage] = idx
         tuple_candidates = list(itertools.combinations(unique_candidates.keys(), 2))
@@ -232,7 +247,8 @@ class BM25PostProcessor(BasePostProcessor):
                 question['candidate_passages'] = [question['candidate_passages'][id] for id in ids_sorted]
                 question['scores'] = [question['scores'][id] for id in ids_sorted]
                 question['passage_scores'] = [question['passage_scores'][id] for id in ids_sorted]
-                # Removing dupplicated answers and mergin their scores, notice "" is not a valid answer
+
+                # Removing dupplicated answers and merging their scores, notice "" is not a valid answer
                 cp_qs = question.copy()
                 question = self.merge(cp_qs)
                 
@@ -246,13 +262,12 @@ class BM25PostProcessor(BasePostProcessor):
                 question['passage_scores'] = [question['passage_scores'][id] for id in ids_sorted][:self.denoisy]
 
                 if mode == "val":
-                    question['original_answers'] = tmp_reader_ans # debugging purpose
-                    question['according_wikipages'] = matched_wiki_answers # debugging purpose
+                    question['original_answers'] = [tmp_reader_ans[id] for id in ids_sorted] # debugging purpose
+                    question['according_wikipages'] = [matched_wiki_answers[id] for id in ids_sorted] # debugging purpose
 
                 # 1 line below is for baseline
                 # emp['data'].append(self.save_question(question, mode))
                 # continue
-
                 tuple_candidates, concat_passages = self.building_concat_passages(question)
                 if len(tuple_candidates) == 0:
                     if mode == "val":

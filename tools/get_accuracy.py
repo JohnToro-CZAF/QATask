@@ -74,16 +74,9 @@ def get_answer_accuracy_multiple(preds, truths):
             truth_answer = truth['answer']
         else:
             continue
-            # truth_answer = None
-        # if pred.get('ans_type', 0) > 0:
-        #     continue
-        # print(pred['answer'][0], " x ", truth['answer'])
         tot += 1
         flag = 0
         pred_answer = pred['answer']
-        # if pred_answer[0] == truth['answer']:
-        #     cnt += 1
-        #     flag = 1
         for ans in pred_answer:
             cnt += int(ans.lower() == truth['answer'].lower())
             if ans.lower() == truth['answer'].lower():
@@ -91,12 +84,41 @@ def get_answer_accuracy_multiple(preds, truths):
                 break
         if flag == 0:
             print(pred['answer'][0], " x ", truth['answer'])
-            # print('original_ans: ', pred['original_ans'][1:])
-            # print('possible_ans: ', pred['candidate_answer'][1:])
     return cnt/tot
 
-def get_retrieving_accuracy(pred, truth) -> float:
-    # compare pred and truth and return accuracy
+def get_answer_recall_multiple_concat(preds, truths):
+    tot = 0
+    cnt = 0
+    acc = 0
+    for pred, truth in zip(preds, truths):
+        if truth['category'] != 'FULL_ANNOTATION': continue
+        if 'answer_concat' not in pred.keys(): continue
+        tot += 1
+        pred_answer = pred['answer_concat']
+        if pred['answer'][0].lower() == truth['answer'].lower():
+            acc += 1
+        for ans in pred_answer:
+            if ans[0].lower() == truth['answer'].lower():
+                cnt += 1
+                break
+    return cnt/tot, acc/tot, tot
+
+def get_recall_reader(preds, truths) -> float:
+    tot = 0
+    cnt = 0
+    for pred, truth in zip(preds, truths):
+        if truth['category'] != 'FULL_ANNOTATION': continue
+        if 'according_wikipages' in pred.keys():
+            tot += 1
+            pred_answer = pred['according_wikipages'][:1]
+            for ans in pred_answer:
+                if ans == truth['answer']:
+                    cnt += 1
+                    break
+    return cnt/tot, tot
+
+def get_retrieving_recall(pred, truth) -> float:
+    # compare pred top_k and truth and return recall
     match = 0
     t = 0
     emp = 0
@@ -119,10 +141,6 @@ def get_retrieving_accuracy(pred, truth) -> float:
                   break
             if flag == 0:
                 t += 1
-                # print('='*50)
-                # print(question['question'])
-                # print(question['candidate_wikipages'])
-                # print('x',truth[idx]['title'],'x')
                 
     print("failed to retrieve: {} questions".format(t), "while there are {} empty title".format(emp))
     return match/(len(pred) - emp)
@@ -140,12 +158,12 @@ def main(args):
     assert len(truth) > len(pred)
     truth = truth[:len(pred)]
 
-    # ans_acc = get_answer_accuracy(pred, truth)
-    re_recall = get_retrieving_accuracy(pred, truth)
-    # print(ans_acc)
-    mul_ans = get_answer_accuracy_multiple(pred, truth)
-    print(mul_ans)
-    print(re_recall)
+    print("Answer Accuracy: ", get_answer_accuracy_multiple(pred, truth))
+    recall_reader, total_wiki = get_recall_reader(pred, truth)
+    print("Recall of reader: {}, over {}".format(recall_reader, total_wiki))
+    print("Recall when retrieving top_k: ", get_retrieving_recall(pred, truth))
+    recall, acc, total_re_reading = get_answer_recall_multiple_concat(pred, truth)
+    print("Recall when rereading : {} and accuracy {}, over {}".format(recall, acc, total_re_reading))
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
